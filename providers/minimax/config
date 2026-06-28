@@ -1,5 +1,9 @@
 # MiniMax provider definition (non-secret).
-COMMAND=minimax
+# COMMAND is "mmxcode", not "minimax" or "mmx": both shorter names already exist
+# on a typical machine and would collide —
+#   minimax -> ~/.mavis/bin/minimax (official MiniMax Code desktop app)
+#   mmx     -> ~/.bun/bin/mmx (unrelated bun-installed tool)
+COMMAND=mmxcode
 BASE_URL=https://api.minimax.io/anthropic
 KEY_VAR=MINIMAX_API_KEY
 KEY_HINT=sk-cp-...

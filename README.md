@@ -7,10 +7,12 @@ One repo that installs global commands to launch [Claude Code](https://docs.anth
 | Provider | Command   | Endpoint                          | Flagship model |
 |----------|-----------|-----------------------------------|----------------|
 | DeepSeek | `deepseek`| `https://api.deepseek.com/anthropic` | `deepseek-v4-pro` |
-| MiniMax  | `minimax` | `https://api.minimax.io/anthropic`   | `MiniMax-M3` |
+| MiniMax  | `mmxcode` | `https://api.minimax.io/anthropic`   | `MiniMax-M3` |
 | GLM (Z.ai) | `glm`   | `https://api.z.ai/api/anthropic`     | `glm-5.2` |
 
 Each provider exposes a native Anthropic-compatible endpoint, so there is no proxy or translation layer — just environment variables.
+
+> **Note:** the MiniMax command is `mmxcode`, not `minimax` or `mmx`, on purpose — both shorter names are already taken and would collide. `minimax` is installed by the official MiniMax Code desktop app (`~/.mavis/bin/minimax`), and `mmx` is an unrelated bun-installed tool (`~/.bun/bin/mmx`).
 
 ## Layout
 
@@ -58,7 +60,7 @@ Then fill in the API key in the relevant `providers/<name>/.env` and run the com
 
 ```bash
 deepseek          # Claude Code on DeepSeek
-minimax           # Claude Code on MiniMax
+mmxcode           # Claude Code on MiniMax
 glm               # Claude Code on GLM (Z.ai)
 ```
 
