@@ -1,5 +1,5 @@
 # MiniMax provider definition (non-secret).
-COMMAND=mmxcode
+COMMAND=minimax
 BASE_URL=https://api.minimax.io/anthropic
 KEY_VAR=MINIMAX_API_KEY
 KEY_HINT=sk-cp-...
