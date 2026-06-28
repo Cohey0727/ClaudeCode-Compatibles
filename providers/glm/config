@@ -1,0 +1,13 @@
+# GLM (Z.ai / Zhipu AI) provider definition (non-secret).
+# Reference: https://docs.z.ai/devpack/tool/claude
+COMMAND=glm
+BASE_URL=https://api.z.ai/api/anthropic
+KEY_VAR=GLM_API_KEY
+KEY_HINT="your Z.ai API key"
+SIGNUP_URL=https://z.ai/manage-apikey/apikey-list
+
+DEFAULT_MODEL=glm-5.2
+DEFAULT_OPUS=glm-5.2
+DEFAULT_SONNET=glm-5.2
+DEFAULT_HAIKU=glm-4.5-air
+DEFAULT_SUBAGENT=glm-4.5-air

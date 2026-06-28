@@ -1,0 +1,6 @@
+# Per-provider secrets (real API keys)
+providers/*/.env
+
+# Claude Code local state (per-developer, not shared)
+.claude/settings.local.json
+.claude/.credentials.json

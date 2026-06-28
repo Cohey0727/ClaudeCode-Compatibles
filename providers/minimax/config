@@ -1,0 +1,13 @@
+# MiniMax provider definition (non-secret).
+COMMAND=mmxcode
+BASE_URL=https://api.minimax.io/anthropic
+KEY_VAR=MINIMAX_API_KEY
+KEY_HINT=sk-cp-...
+SIGNUP_URL=https://www.minimax.io/platform
+
+DEFAULT_MODEL=MiniMax-M3
+DEFAULT_OPUS=MiniMax-M3
+DEFAULT_SONNET=MiniMax-M3
+DEFAULT_HAIKU=MiniMax-M3
+DEFAULT_API_TIMEOUT_MS=3000000
+DEFAULT_AUTO_COMPACT_WINDOW=512000

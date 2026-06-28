@@ -1,0 +1,14 @@
+# DeepSeek provider definition (non-secret).
+# Reference: https://api-docs.deepseek.com/guides/agent_integrations/claude_code
+COMMAND=deepseek
+BASE_URL=https://api.deepseek.com/anthropic
+KEY_VAR=DEEPSEEK_API_KEY
+KEY_HINT=sk-...
+SIGNUP_URL=https://platform.deepseek.com/
+
+DEFAULT_MODEL=deepseek-v4-pro
+DEFAULT_OPUS=deepseek-v4-pro
+DEFAULT_SONNET=deepseek-v4-pro
+DEFAULT_HAIKU=deepseek-v4-flash
+DEFAULT_SUBAGENT=deepseek-v4-flash
+DEFAULT_EFFORT=max
