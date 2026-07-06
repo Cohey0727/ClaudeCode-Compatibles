@@ -113,6 +113,11 @@ export PATH="$HOME/.local/bin:$PATH"
 
 **`ANTHROPIC_AUTH_TOKEN is empty`** — set the key in `providers/<name>/.env`.
 
+**Upgrading from the old `config` + `.env` layout** — re-run `make install`. It
+detects an old-format `.env` (no `ANTHROPIC_BASE_URL` line), regenerates it from
+`.env.example`, carries your API key over to `ANTHROPIC_AUTH_TOKEN`, and keeps
+the original as `.env.bak`.
+
 **You moved the repo** — the baked-in path is stale. Re-run `make install` from the new location.
 
 ## References

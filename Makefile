@@ -24,6 +24,13 @@ install:
 		cmd=$$(. "$$dir/.env.example"; printf '%s' "$$COMMAND"); \
 		env="$$dir/.env"; \
 		if [ ! -f "$$env" ]; then cp "$$dir/.env.example" "$$env"; chmod 600 "$$env"; echo "  Created $$env from .env.example"; fi; \
+		if ! grep -q '^ANTHROPIC_BASE_URL=' "$$env"; then \
+			key=$$(grep -E '^[A-Z_]+_API_KEY=.+' "$$env" | head -1 | cut -d= -f2-); \
+			mv "$$env" "$$env.bak"; \
+			sed "s|^ANTHROPIC_AUTH_TOKEN=.*|ANTHROPIC_AUTH_TOKEN=$$key|" "$$dir/.env.example" > "$$env"; \
+			chmod 600 "$$env"; \
+			echo "  Migrated old-format $$env (backup: $$env.bak)"; \
+		fi; \
 		sed 's|@@PROVIDER_DIR@@|'"$$dir"'|g' "$(TEMPLATE)" > "$(BIN_DIR)/$$cmd"; \
 		chmod +x "$(BIN_DIR)/$$cmd"; \
 		echo "  Installed: $(BIN_DIR)/$$cmd  ($$p)"; \
