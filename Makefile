@@ -20,15 +20,14 @@ install:
 	@mkdir -p "$(BIN_DIR)"
 	@for p in $(PROVIDER_LIST); do \
 		dir="$(PROVIDERS_DIR)/$$p"; \
-		[ -f "$$dir/config" ] || { echo "  skip $$p: no providers/$$p/config"; continue; }; \
-		cmd=$$(. "$$dir/config"; printf '%s' "$$COMMAND"); \
-		keyvar=$$(. "$$dir/config"; printf '%s' "$$KEY_VAR"); \
+		[ -f "$$dir/.env.example" ] || { echo "  skip $$p: no providers/$$p/.env.example"; continue; }; \
+		cmd=$$(. "$$dir/.env.example"; printf '%s' "$$COMMAND"); \
 		env="$$dir/.env"; \
 		if [ ! -f "$$env" ]; then cp "$$dir/.env.example" "$$env"; chmod 600 "$$env"; echo "  Created $$env from .env.example"; fi; \
 		sed 's|@@PROVIDER_DIR@@|'"$$dir"'|g' "$(TEMPLATE)" > "$(BIN_DIR)/$$cmd"; \
 		chmod +x "$(BIN_DIR)/$$cmd"; \
 		echo "  Installed: $(BIN_DIR)/$$cmd  ($$p)"; \
-		if grep -Eq "^$$keyvar=.+" "$$env"; then echo "    $$keyvar: set"; else echo "    $$keyvar: NOT SET — edit $$env"; fi; \
+		if grep -Eq "^ANTHROPIC_AUTH_TOKEN=.+" "$$env"; then echo "    ANTHROPIC_AUTH_TOKEN: set"; else echo "    ANTHROPIC_AUTH_TOKEN: NOT SET — edit $$env"; fi; \
 	done
 	@echo
 	@command -v claude >/dev/null 2>&1 || echo "  WARNING: 'claude' is not on your PATH — install Claude Code first."
@@ -40,8 +39,8 @@ install:
 uninstall:
 	@for p in $(PROVIDER_LIST); do \
 		dir="$(PROVIDERS_DIR)/$$p"; \
-		[ -f "$$dir/config" ] || continue; \
-		cmd=$$(. "$$dir/config"; printf '%s' "$$COMMAND"); \
+		[ -f "$$dir/.env.example" ] || continue; \
+		cmd=$$(. "$$dir/.env.example"; printf '%s' "$$COMMAND"); \
 		rm -f "$(BIN_DIR)/$$cmd" && echo "  Removed $(BIN_DIR)/$$cmd"; \
 	done
 	@echo "  Note: provider .env files are left in place. Delete them manually if no longer needed."
@@ -49,8 +48,8 @@ uninstall:
 list:
 	@for p in $(PROVIDER_LIST); do \
 		dir="$(PROVIDERS_DIR)/$$p"; \
-		[ -f "$$dir/config" ] || continue; \
-		cmd=$$(. "$$dir/config"; printf '%s' "$$COMMAND"); \
-		url=$$(. "$$dir/config"; printf '%s' "$$BASE_URL"); \
+		[ -f "$$dir/.env.example" ] || continue; \
+		cmd=$$(. "$$dir/.env.example"; printf '%s' "$$COMMAND"); \
+		url=$$(. "$$dir/.env.example"; printf '%s' "$$ANTHROPIC_BASE_URL"); \
 		printf '  %-10s -> %-9s %s\n' "$$p" "$$cmd" "$$url"; \
 	done

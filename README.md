@@ -17,14 +17,13 @@ Each provider exposes a native Anthropic-compatible endpoint, so there is no pro
 ## Layout
 
 ```
-bin/launcher.template     # generic launcher; @@PROVIDER_DIR@@ baked in at install time
-providers/<name>/config   # non-secret provider definition (command, endpoint, models)
-providers/<name>/.env     # your API key + overrides (gitignored, chmod 600)
-providers/<name>/.env.example
-Makefile                  # install / uninstall / list — all providers or one
+bin/launcher.template          # generic launcher; @@PROVIDER_DIR@@ baked in at install time
+providers/<name>/.env          # all settings: key, endpoint, models (gitignored, chmod 600)
+providers/<name>/.env.example  # same file with an empty ANTHROPIC_AUTH_TOKEN (in git)
+Makefile                       # install / uninstall / list — all providers or one
 ```
 
-Adding a provider is just a new `providers/<name>/` folder with a `config` and `.env.example`.
+Adding a provider is just a new `providers/<name>/` folder with a `.env.example`.
 
 ## Requirements
 
@@ -50,11 +49,9 @@ make install PROVIDER=glm
 
 1. Creates each provider's `.env` from `.env.example` if missing (`chmod 600`)
 2. Generates `~/.local/bin/<command>`, with the absolute path to that provider's folder baked in
-3. Reports whether each API key is set, and warns if `~/.local/bin` or `claude` is missing from your PATH
+3. Reports whether each `ANTHROPIC_AUTH_TOKEN` is set, and warns if `~/.local/bin` or `claude` is missing from your PATH
 
-Then fill in the API key in the relevant `providers/<name>/.env` and run the command.
-
-> The DeepSeek and MiniMax `.env` files were carried over from the previous standalone repos, so their keys are already populated. GLM ships without a key — add yours to `providers/glm/.env`.
+Then set `ANTHROPIC_AUTH_TOKEN` in the relevant `providers/<name>/.env` and run the command.
 
 ## Usage
 
@@ -73,27 +70,30 @@ deepseek -p "Review my TypeScript type definitions"
 
 ## `.env` variables
 
-`<KEY_VAR>` is the only required value. Everything else has a default in
-`providers/<name>/config`; uncomment a line in `.env` only to override it.
+Each provider has exactly one settings file: `providers/<name>/.env`. There is
+no mapping layer — every variable uses the name Claude Code itself reads, and
+the whole file is exported to `claude` verbatim.
 
-| Provider | Key variable | Optional overrides |
-|----------|--------------|--------------------|
-| DeepSeek | `DEEPSEEK_API_KEY` | `ANTHROPIC_MODEL`, `ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL`, `CLAUDE_CODE_SUBAGENT_MODEL`, `CLAUDE_CODE_EFFORT_LEVEL` |
-| MiniMax  | `MINIMAX_API_KEY`  | model slots, `API_TIMEOUT_MS`, `CLAUDE_CODE_AUTO_COMPACT_WINDOW` |
-| GLM      | `GLM_API_KEY`      | model slots (`glm-5.2`, `glm-4.5-air`) |
+| Variable | Meaning |
+|----------|---------|
+| `COMMAND` | Installed launcher name (used by `make install`; stripped before `claude` starts) |
+| `ANTHROPIC_AUTH_TOKEN` | **Required.** Your provider API key |
+| `ANTHROPIC_BASE_URL` | Provider's Anthropic-compatible endpoint |
+| `ANTHROPIC_MODEL`, `ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL` | Model per Claude Code slot |
+| `CLAUDE_CODE_SUBAGENT_MODEL`, `CLAUDE_CODE_EFFORT_LEVEL` | Subagent model / effort |
+| `API_TIMEOUT_MS`, `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | Runtime tuning (MiniMax defaults set these) |
 
-Resolution order for each variable: value in your `.env` (or shell env) > provider default in `config` > unset.
+Any extra `KEY=VALUE` lines you add are passed through to `claude` as well.
 
 ## How it works
 
 Each installed command is the same thin shell script with one provider folder
 path baked in. At runtime it:
 
-1. Sources `providers/<name>/config` (endpoint + model defaults)
-2. Sources `providers/<name>/.env` (your key + any overrides)
-3. Exports `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, and the model/runtime variables
-4. `unset`s `ANTHROPIC_API_KEY` (it would otherwise shadow `AUTH_TOKEN`)
-5. `exec`s `claude "$@"`
+1. Sources `providers/<name>/.env` with `set -a` (everything is exported as-is)
+2. Fails fast if `ANTHROPIC_AUTH_TOKEN` or `ANTHROPIC_BASE_URL` is empty
+3. `unset`s `COMMAND` (launcher metadata) and `ANTHROPIC_API_KEY` (it would otherwise shadow `AUTH_TOKEN`)
+4. `exec`s `claude "$@"`
 
 ## Other targets
 
@@ -111,7 +111,7 @@ make install PREFIX=/opt/local   # install under /opt/local/bin instead
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
-**`<KEY_VAR> is empty`** — fill in the key in `providers/<name>/.env`.
+**`ANTHROPIC_AUTH_TOKEN is empty`** — set the key in `providers/<name>/.env`.
 
 **You moved the repo** — the baked-in path is stale. Re-run `make install` from the new location.
 
