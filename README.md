@@ -77,6 +77,7 @@ the whole file is exported to `claude` verbatim.
 | Variable | Meaning |
 |----------|---------|
 | `COMMAND` | Installed launcher name (used by `make install`; stripped before `claude` starts) |
+| `CLAUDE_ARGS` | Optional default CLI options prepended to every launch (word-split; stripped before `claude` starts). Command-line arguments come after them |
 | `ANTHROPIC_AUTH_TOKEN` | **Required.** Your provider API key |
 | `ANTHROPIC_BASE_URL` | Provider's Anthropic-compatible endpoint |
 | `ANTHROPIC_MODEL`, `ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL` | Model per Claude Code slot |
@@ -92,8 +93,8 @@ path baked in. At runtime it:
 
 1. Sources `providers/<name>/.env` with `set -a` (everything is exported as-is)
 2. Fails fast if `ANTHROPIC_AUTH_TOKEN` or `ANTHROPIC_BASE_URL` is empty
-3. `unset`s `COMMAND` (launcher metadata) and `ANTHROPIC_API_KEY` (it would otherwise shadow `AUTH_TOKEN`)
-4. `exec`s `claude "$@"`
+3. `unset`s `COMMAND` / `CLAUDE_ARGS` (launcher metadata) and `ANTHROPIC_API_KEY` (it would otherwise shadow `AUTH_TOKEN`)
+4. `exec`s `claude $CLAUDE_ARGS "$@"` — default options first, then your arguments
 
 ## Other targets
 

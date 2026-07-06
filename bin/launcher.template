@@ -24,8 +24,10 @@ source "$ENV_FILE"
 set +a
 
 NAME="${COMMAND:-launcher}"
-# COMMAND is launcher metadata for `make install`, not for claude.
-unset COMMAND
+DEFAULT_ARGS="${CLAUDE_ARGS:-}"
+# COMMAND (launcher name for `make install`) and CLAUDE_ARGS (default CLI
+# options, consumed below) are launcher metadata, not for claude's env.
+unset COMMAND CLAUDE_ARGS
 
 if [[ -z "${ANTHROPIC_AUTH_TOKEN:-}" ]]; then
   echo "$NAME: ANTHROPIC_AUTH_TOKEN is empty in $ENV_FILE" >&2
@@ -41,4 +43,5 @@ fi
 # A stale ANTHROPIC_API_KEY in the environment would shadow AUTH_TOKEN.
 unset ANTHROPIC_API_KEY
 
-exec claude "$@"
+# shellcheck disable=SC2086  # word-splitting DEFAULT_ARGS is intended
+exec claude $DEFAULT_ARGS "$@"
