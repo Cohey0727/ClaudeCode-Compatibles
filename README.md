@@ -1,6 +1,6 @@
 # ClaudeCode-Compatibles
 
-> Run Claude Code on Anthropic-compatible LLM backends (DeepSeek · MiniMax · GLM) — one repo, one `make install`, a global command per provider.
+> Run Claude Code on Anthropic-compatible LLM backends (DeepSeek · MiniMax · GLM · Kimi) — one repo, one `make install`, a global command per provider.
 
 One repo that installs global commands to launch [Claude Code](https://docs.anthropic.com/claude-code) against Anthropic-compatible backends:
 
@@ -9,6 +9,7 @@ One repo that installs global commands to launch [Claude Code](https://docs.anth
 | DeepSeek | `deepseek`| `https://api.deepseek.com/anthropic` | `deepseek-v4-pro` |
 | MiniMax  | `mmxcode` | `https://api.minimax.io/anthropic`   | `MiniMax-M3` |
 | GLM (Z.ai) | `glm`   | `https://api.z.ai/api/anthropic`     | `glm-5.2` |
+| Kimi (Moonshot) | `kimi` | `https://api.moonshot.ai/anthropic` | `kimi-k3[1m]` |
 
 Each provider exposes a native Anthropic-compatible endpoint, so there is no proxy or translation layer — just environment variables.
 
@@ -59,6 +60,7 @@ Then set `ANTHROPIC_AUTH_TOKEN` in the relevant `providers/<name>/.env` and run 
 deepseek          # Claude Code on DeepSeek
 mmxcode           # Claude Code on MiniMax
 glm               # Claude Code on GLM (Z.ai)
+kimi              # Claude Code on Kimi (Moonshot)
 ```
 
 Arguments pass through to `claude` verbatim:
@@ -126,3 +128,4 @@ the original as `.env.bak`.
 - [DeepSeek: Claude Code Integration Guide](https://api-docs.deepseek.com/guides/agent_integrations/claude_code)
 - [MiniMax Platform](https://www.minimax.io/platform)
 - [Z.ai / GLM Claude Code docs](https://docs.z.ai/devpack/tool/claude)
+- [Kimi / Moonshot AI Platform](https://platform.moonshot.ai/docs)
