@@ -2,46 +2,17 @@ PREFIX  ?= $(HOME)/.local
 BIN_DIR := $(PREFIX)/bin
 
 ROOT          := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
-TEMPLATE      := $(ROOT)/bin/launcher.template
 PROVIDERS_DIR := $(ROOT)/providers
 
-# Act on one provider with `make install PROVIDER=deepseek`.
-# Default (empty) acts on every directory under providers/.
-PROVIDER ?=
-ifeq ($(strip $(PROVIDER)),)
-  PROVIDER_LIST := $(notdir $(wildcard $(PROVIDERS_DIR)/*))
-else
-  PROVIDER_LIST := $(PROVIDER)
-endif
+# Every target acts on all directories under providers/.
+PROVIDER_LIST := $(notdir $(wildcard $(PROVIDERS_DIR)/*))
 
-.PHONY: install uninstall list
+.PHONY: setup uninstall list
 
-install:
-	@mkdir -p "$(BIN_DIR)"
-	@for p in $(PROVIDER_LIST); do \
-		dir="$(PROVIDERS_DIR)/$$p"; \
-		[ -f "$$dir/.env.example" ] || { echo "  skip $$p: no providers/$$p/.env.example"; continue; }; \
-		cmd=$$(. "$$dir/.env.example"; printf '%s' "$$COMMAND"); \
-		env="$$dir/.env"; \
-		if [ ! -f "$$env" ]; then cp "$$dir/.env.example" "$$env"; chmod 600 "$$env"; echo "  Created $$env from .env.example"; fi; \
-		if ! grep -q '^ANTHROPIC_BASE_URL=' "$$env"; then \
-			key=$$(grep -E '^[A-Z_]+_API_KEY=.+' "$$env" | head -1 | cut -d= -f2-); \
-			mv "$$env" "$$env.bak"; \
-			sed "s|^ANTHROPIC_AUTH_TOKEN=.*|ANTHROPIC_AUTH_TOKEN=$$key|" "$$dir/.env.example" > "$$env"; \
-			chmod 600 "$$env"; \
-			echo "  Migrated old-format $$env (backup: $$env.bak)"; \
-		fi; \
-		sed 's|@@PROVIDER_DIR@@|'"$$dir"'|g' "$(TEMPLATE)" > "$(BIN_DIR)/$$cmd"; \
-		chmod +x "$(BIN_DIR)/$$cmd"; \
-		echo "  Installed: $(BIN_DIR)/$$cmd  ($$p)"; \
-		if grep -Eq "^ANTHROPIC_AUTH_TOKEN=.+" "$$env"; then echo "    ANTHROPIC_AUTH_TOKEN: set"; else echo "    ANTHROPIC_AUTH_TOKEN: NOT SET — edit $$env"; fi; \
-	done
-	@echo
-	@command -v claude >/dev/null 2>&1 || echo "  WARNING: 'claude' is not on your PATH — install Claude Code first."
-	@case ":$$PATH:" in *":$(BIN_DIR):"*) ;; *) \
-		echo "  WARNING: $(BIN_DIR) is not on your PATH. Add to your shell rc:"; \
-		echo "    export PATH=\"$(BIN_DIR):\$$PATH\"";; \
-	esac
+# Interactive wizard: checkbox provider picker, per-provider API token
+# prompts (Enter keeps the current token), launcher install, PATH checks.
+setup:
+	@BIN_DIR="$(BIN_DIR)" "$(ROOT)/bin/setup.sh"
 
 uninstall:
 	@for p in $(PROVIDER_LIST); do \

@@ -1,6 +1,6 @@
 # ClaudeCode-Compatibles
 
-> Run Claude Code on Anthropic-compatible LLM backends (DeepSeek · MiniMax · GLM · Kimi) — one repo, one `make install`, a global command per provider.
+> Run Claude Code on Anthropic-compatible LLM backends (DeepSeek · MiniMax · GLM · Kimi) — one repo, one `make setup`, a global command per provider.
 
 One repo that installs global commands to launch [Claude Code](https://docs.anthropic.com/claude-code) against Anthropic-compatible backends:
 
@@ -9,19 +9,22 @@ One repo that installs global commands to launch [Claude Code](https://docs.anth
 | DeepSeek | `deepseek`| `https://api.deepseek.com/anthropic` | `deepseek-v4-pro` |
 | MiniMax  | `mmxcode` | `https://api.minimax.io/anthropic`   | `MiniMax-M3` |
 | GLM (Z.ai) | `glm`   | `https://api.z.ai/api/anthropic`     | `glm-5.2` |
-| Kimi (Moonshot) | `kimi` | `https://api.moonshot.ai/anthropic` | `kimi-k3[1m]` |
+| Kimi (Moonshot) | `kimi` | `https://api.kimi.com/coding` | `kimi-k3[1m]` |
 
 Each provider exposes a native Anthropic-compatible endpoint, so there is no proxy or translation layer — just environment variables.
 
 > **Note:** the MiniMax command is `mmxcode`, not `minimax` or `mmx`, on purpose — both shorter names are already taken and would collide. `minimax` is installed by the official MiniMax Code desktop app (`~/.mavis/bin/minimax`), and `mmx` is an unrelated bun-installed tool (`~/.bun/bin/mmx`).
 
+> **Note:** Kimi has two endpoints. The default `https://api.kimi.com/coding` is for the **coding subscription plan**. For **pay-as-you-go (metered) billing**, switch `ANTHROPIC_BASE_URL` to `https://api.moonshot.ai/anthropic` in `providers/kimi/.env`.
+
 ## Layout
 
 ```
-bin/launcher.template          # generic launcher; @@PROVIDER_DIR@@ baked in at install time
+bin/launcher.template          # generic launcher; @@PROVIDER_DIR@@ baked in at setup time
+bin/setup.sh                   # interactive wizard: pick providers, paste tokens, install (`make setup`)
 providers/<name>/.env          # all settings: key, endpoint, models (gitignored, chmod 600)
 providers/<name>/.env.example  # same file with an empty ANTHROPIC_AUTH_TOKEN (in git)
-Makefile                       # install / uninstall / list — all providers or one
+Makefile                       # setup / uninstall / list
 ```
 
 Adding a provider is just a new `providers/<name>/` folder with a `.env.example`.
@@ -34,25 +37,19 @@ Adding a provider is just a new `providers/<name>/` folder with a `.env.example`
 
 ## Setup
 
-Install every provider command at once:
-
 ```bash
-make install
+make setup
 ```
 
-Or just one:
+One interactive wizard does everything:
 
-```bash
-make install PROVIDER=glm
-```
+1. Check the providers you want (arrows + Space, Enter to confirm — providers that already have a token are pre-checked)
+2. Paste each API token — an empty answer keeps the existing token
+3. Each provider's `.env` is created from `.env.example` if missing (`chmod 600`)
+4. `~/.local/bin/<command>` is generated with the provider folder path baked in
+5. You get a warning if `~/.local/bin` or `claude` is missing from your PATH
 
-`make install`:
-
-1. Creates each provider's `.env` from `.env.example` if missing (`chmod 600`)
-2. Generates `~/.local/bin/<command>`, with the absolute path to that provider's folder baked in
-3. Reports whether each `ANTHROPIC_AUTH_TOKEN` is set, and warns if `~/.local/bin` or `claude` is missing from your PATH
-
-Then set `ANTHROPIC_AUTH_TOKEN` in the relevant `providers/<name>/.env` and run the command.
+To rotate a token or add a provider later, just re-run `make setup`.
 
 ## Usage
 
@@ -98,15 +95,6 @@ path baked in. At runtime it:
 3. `unset`s `COMMAND` / `CLAUDE_ARGS` (launcher metadata) and `ANTHROPIC_API_KEY` (it would otherwise shadow `AUTH_TOKEN`)
 4. `exec`s `claude $CLAUDE_ARGS "$@"` — default options first, then your arguments
 
-## Other targets
-
-```bash
-make list                    # show provider -> command -> endpoint
-make uninstall               # remove all installed commands (.env files kept)
-make uninstall PROVIDER=glm  # remove just one
-make install PREFIX=/opt/local   # install under /opt/local/bin instead
-```
-
 ## Troubleshooting
 
 **`command not found`** — `~/.local/bin` is not on your PATH:
@@ -114,14 +102,14 @@ make install PREFIX=/opt/local   # install under /opt/local/bin instead
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
-**`ANTHROPIC_AUTH_TOKEN is empty`** — set the key in `providers/<name>/.env`.
+**`ANTHROPIC_AUTH_TOKEN is empty`** — re-run `make setup`, or set the key in `providers/<name>/.env` directly.
 
-**Upgrading from the old `config` + `.env` layout** — re-run `make install`. It
+**Upgrading from the old `config` + `.env` layout** — re-run `make setup`. It
 detects an old-format `.env` (no `ANTHROPIC_BASE_URL` line), regenerates it from
 `.env.example`, carries your API key over to `ANTHROPIC_AUTH_TOKEN`, and keeps
 the original as `.env.bak`.
 
-**You moved the repo** — the baked-in path is stale. Re-run `make install` from the new location.
+**You moved the repo** — the baked-in path is stale. Re-run `make setup` from the new location.
 
 ## References
 
