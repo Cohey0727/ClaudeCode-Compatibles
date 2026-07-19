@@ -9,11 +9,13 @@ One repo that installs global commands to launch [Claude Code](https://docs.anth
 | DeepSeek | `deepseek`| `https://api.deepseek.com/anthropic` | `deepseek-v4-pro` |
 | MiniMax  | `mmxcode` | `https://api.minimax.io/anthropic`   | `MiniMax-M3` |
 | GLM (Z.ai) | `glm`   | `https://api.z.ai/api/anthropic`     | `glm-5.2` |
-| Kimi (Moonshot) | `kimi` | `https://api.kimi.com/coding` | `kimi-k3[1m]` |
+| Kimi (Moonshot) | `claudekimi` | `https://api.kimi.com/coding` | `kimi-k3[1m]` |
 
 Each provider exposes a native Anthropic-compatible endpoint, so there is no proxy or translation layer — just environment variables.
 
 > **Note:** the MiniMax command is `mmxcode`, not `minimax` or `mmx`, on purpose — both shorter names are already taken and would collide. `minimax` is installed by the official MiniMax Code desktop app (`~/.mavis/bin/minimax`), and `mmx` is an unrelated bun-installed tool (`~/.bun/bin/mmx`).
+
+> **Note:** the Kimi command is `claudekimi`, not `kimi` — the bare name collides with Moonshot's official Kimi CLI, and the `claude` prefix makes it explicit that this runs Kimi through Claude Code.
 
 > **Note:** Kimi has two endpoints. The default `https://api.kimi.com/coding` is for the **coding subscription plan**. For **pay-as-you-go (metered) billing**, switch `ANTHROPIC_BASE_URL` to `https://api.moonshot.ai/anthropic` in `providers/kimi/.env`.
 
@@ -57,7 +59,7 @@ To rotate a token or add a provider later, just re-run `make setup`.
 deepseek          # Claude Code on DeepSeek
 mmxcode           # Claude Code on MiniMax
 glm               # Claude Code on GLM (Z.ai)
-kimi              # Claude Code on Kimi (Moonshot)
+claudekimi        # Claude Code on Kimi (Moonshot)
 ```
 
 Arguments pass through to `claude` verbatim:
