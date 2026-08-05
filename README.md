@@ -10,7 +10,7 @@ One repo that installs global commands to launch [Claude Code](https://docs.anth
 | MiniMax  | `mmxcode` | `https://api.minimax.io/anthropic`   | `MiniMax-M3` |
 | GLM (Z.ai) | `glm`   | `https://api.z.ai/api/anthropic`     | `glm-5.2` |
 | Kimi (Moonshot) | `claudekimi` | `https://api.kimi.com/coding` | `kimi-k3[1m]` |
-| MiMo (Xiaomi) | `mimo` | `https://token-plan-cn.xiaomimimo.com/anthropic` | `mimo-v2.5-pro[1m]` |
+| MiMo (Xiaomi) | `mimo` | `https://token-plan-sgp.xiaomimimo.com/anthropic` | `mimo-v2.5-pro[1m]` |
 
 Each provider exposes a native Anthropic-compatible endpoint, so there is no proxy or translation layer — just environment variables.
 
@@ -20,7 +20,7 @@ Each provider exposes a native Anthropic-compatible endpoint, so there is no pro
 
 > **Note:** Kimi has two endpoints. The default `https://api.kimi.com/coding` is for the **coding subscription plan**. For **pay-as-you-go (metered) billing**, switch `ANTHROPIC_BASE_URL` to `https://api.moonshot.ai/anthropic` in `providers/kimi/.env`.
 
-> **Note:** MiMo also has two endpoints. The default `https://token-plan-cn.xiaomimimo.com/anthropic` is for the **Token Plan subscription** (tokens start with `tp-`). For **pay-as-you-go (metered) billing** (keys start with `sk-`), switch `ANTHROPIC_BASE_URL` to `https://api.xiaomimimo.com/anthropic` in `providers/mimo/.env`.
+> **Note:** MiMo has three endpoints. The default `https://token-plan-sgp.xiaomimimo.com/anthropic` is the **global Token Plan subscription** endpoint (tokens start with `tp-`). China accounts use `https://token-plan-cn.xiaomimimo.com/anthropic` instead, and **pay-as-you-go (metered) billing** (keys start with `sk-`) uses `https://api.xiaomimimo.com/anthropic` — switch `ANTHROPIC_BASE_URL` in `providers/mimo/.env` accordingly. Note the docs mostly mention only the CN host; the `-sgp` host is what actually accepts global-plan tokens.
 
 ## Layout
 
