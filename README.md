@@ -1,6 +1,6 @@
 # ClaudeCode-Compatibles
 
-> Run Claude Code on Anthropic-compatible LLM backends (DeepSeek · MiniMax · GLM · Kimi) — one repo, one `make setup`, a global command per provider.
+> Run Claude Code on Anthropic-compatible LLM backends (DeepSeek · MiniMax · GLM · Kimi · MiMo) — one repo, one `make setup`, a global command per provider.
 
 One repo that installs global commands to launch [Claude Code](https://docs.anthropic.com/claude-code) against Anthropic-compatible backends:
 
@@ -10,6 +10,7 @@ One repo that installs global commands to launch [Claude Code](https://docs.anth
 | MiniMax  | `mmxcode` | `https://api.minimax.io/anthropic`   | `MiniMax-M3` |
 | GLM (Z.ai) | `glm`   | `https://api.z.ai/api/anthropic`     | `glm-5.2` |
 | Kimi (Moonshot) | `claudekimi` | `https://api.kimi.com/coding` | `kimi-k3[1m]` |
+| MiMo (Xiaomi) | `mimo` | `https://token-plan-cn.xiaomimimo.com/anthropic` | `mimo-v2.5-pro[1m]` |
 
 Each provider exposes a native Anthropic-compatible endpoint, so there is no proxy or translation layer — just environment variables.
 
@@ -18,6 +19,8 @@ Each provider exposes a native Anthropic-compatible endpoint, so there is no pro
 > **Note:** the Kimi command is `claudekimi`, not `kimi` — the bare name collides with Moonshot's official Kimi CLI, and the `claude` prefix makes it explicit that this runs Kimi through Claude Code.
 
 > **Note:** Kimi has two endpoints. The default `https://api.kimi.com/coding` is for the **coding subscription plan**. For **pay-as-you-go (metered) billing**, switch `ANTHROPIC_BASE_URL` to `https://api.moonshot.ai/anthropic` in `providers/kimi/.env`.
+
+> **Note:** MiMo also has two endpoints. The default `https://token-plan-cn.xiaomimimo.com/anthropic` is for the **Token Plan subscription** (tokens start with `tp-`). For **pay-as-you-go (metered) billing** (keys start with `sk-`), switch `ANTHROPIC_BASE_URL` to `https://api.xiaomimimo.com/anthropic` in `providers/mimo/.env`.
 
 ## Layout
 
@@ -60,6 +63,7 @@ deepseek          # Claude Code on DeepSeek
 mmxcode           # Claude Code on MiniMax
 glm               # Claude Code on GLM (Z.ai)
 claudekimi        # Claude Code on Kimi (Moonshot)
+mimo              # Claude Code on MiMo (Xiaomi)
 ```
 
 Arguments pass through to `claude` verbatim:
@@ -119,3 +123,4 @@ the original as `.env.bak`.
 - [MiniMax Platform](https://www.minimax.io/platform)
 - [Z.ai / GLM Claude Code docs](https://docs.z.ai/devpack/tool/claude)
 - [Kimi / Moonshot AI Platform](https://platform.moonshot.ai/docs)
+- [Xiaomi MiMo: Claude Code Integration (Token Plan)](https://mimo.mi.com/docs/en-US/tokenplan/integration/claudecode)
