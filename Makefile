@@ -34,5 +34,5 @@ list:
 		cmd=$$(. "$$dir/.env.example"; printf '%s' "$$COMMAND"); \
 		occmd=$$(. "$$dir/.env.example"; printf '%s' "$$OPENCODE_COMMAND"); \
 		url=$$(. "$$dir/.env.example"; printf '%s' "$$ANTHROPIC_BASE_URL"); \
-		printf '  %-10s -> %-24s %s\n' "$$p" "$$cmd$${occmd:+ / $$occmd}" "$$url"; \
+		printf '  %-10s -> %-30s %s\n' "$$p" "$$cmd$${occmd:+ / $$occmd}" "$$url"; \
 	done

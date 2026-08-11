@@ -6,17 +6,15 @@ One repo that installs global commands to launch [Claude Code](https://docs.anth
 
 | Provider | Claude Code | OpenCode | Endpoint                          | Flagship model |
 |----------|-------------|----------|-----------------------------------|----------------|
-| DeepSeek | `deepseek`| `opendeepseek` | `https://api.deepseek.com/anthropic` | `deepseek-v4-pro` |
-| MiniMax  | `mmxcode` | `openmmx` | `https://api.minimax.io/anthropic`   | `MiniMax-M3` |
-| GLM (Z.ai) | `glm`   | `openglm` | `https://api.z.ai/api/anthropic`     | `glm-5.2` |
+| DeepSeek | `claudedeepseek` | `opendeepseek` | `https://api.deepseek.com/anthropic` | `deepseek-v4-pro` |
+| MiniMax  | `claudemmx` | `openmmx` | `https://api.minimax.io/anthropic`   | `MiniMax-M3` |
+| GLM (Z.ai) | `claudeglm` | `openglm` | `https://api.z.ai/api/anthropic`     | `glm-5.2` |
 | Kimi (Moonshot) | `claudekimi` | `openkimi` | `https://api.kimi.com/coding` | `kimi-k3[1m]` |
-| MiMo (Xiaomi) | `mimo` | `openmimo` | `https://token-plan-sgp.xiaomimimo.com/anthropic` | `mimo-v2.5-pro[1m]` |
+| MiMo (Xiaomi) | `claudemimo` | `openmimo` | `https://token-plan-sgp.xiaomimimo.com/anthropic` | `mimo-v2.5-pro[1m]` |
 
 Each provider exposes a native Anthropic-compatible endpoint, so there is no proxy or translation layer — just environment variables. The `open*` commands run OpenCode against the very same endpoint and token: both launchers of a provider share the single `providers/<name>/.env`.
 
-> **Note:** the MiniMax command is `mmxcode`, not `minimax` or `mmx`, on purpose — both shorter names are already taken and would collide. `minimax` is installed by the official MiniMax Code desktop app (`~/.mavis/bin/minimax`), and `mmx` is an unrelated bun-installed tool (`~/.bun/bin/mmx`).
-
-> **Note:** the Kimi command is `claudekimi`, not `kimi` — the bare name collides with Moonshot's official Kimi CLI, and the `claude` prefix makes it explicit that this runs Kimi through Claude Code.
+> **Note:** every command follows one naming scheme — `claude<name>` for Claude Code, `open<name>` for OpenCode. Bare provider names are deliberately avoided: `kimi` is Moonshot's official Kimi CLI, `minimax` is the official MiniMax Code desktop app command, and `mmx` is an unrelated bun-installed tool. MiniMax uses the short name `mmx` (`claudemmx` / `openmmx`).
 
 > **Note:** Kimi has two endpoints. The default `https://api.kimi.com/coding` is for the **coding subscription plan**. For **pay-as-you-go (metered) billing**, switch `ANTHROPIC_BASE_URL` to `https://api.moonshot.ai/anthropic` in `providers/kimi/.env`.
 
@@ -69,11 +67,11 @@ To rotate a token or add a provider later, just re-run `make setup`.
 ## Usage
 
 ```bash
-deepseek          # Claude Code on DeepSeek
-mmxcode           # Claude Code on MiniMax
-glm               # Claude Code on GLM (Z.ai)
+claudedeepseek    # Claude Code on DeepSeek
+claudemmx         # Claude Code on MiniMax
+claudeglm         # Claude Code on GLM (Z.ai)
 claudekimi        # Claude Code on Kimi (Moonshot)
-mimo              # Claude Code on MiMo (Xiaomi)
+claudemimo        # Claude Code on MiMo (Xiaomi)
 
 opendeepseek      # OpenCode on DeepSeek
 openmmx           # OpenCode on MiniMax
@@ -85,8 +83,8 @@ openmimo          # OpenCode on MiMo (Xiaomi)
 Arguments pass through to `claude` / `opencode` verbatim:
 
 ```bash
-glm --help
-deepseek -p "Review my TypeScript type definitions"
+claudeglm --help
+claudedeepseek -p "Review my TypeScript type definitions"
 openkimi run "Review my TypeScript type definitions"
 ```
 

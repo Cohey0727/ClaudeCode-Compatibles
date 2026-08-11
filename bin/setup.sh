@@ -135,9 +135,9 @@ draw_item() { # <index>
     printf '  [%s] %s%-12s%s' "$mark" "$B" "${ITEMS[$i]}" "$RST"
   fi
   if [ -n "$tok" ]; then
-    printf '  %s→ %-24s%s %stoken: set%s\n' "$DIM" "$cmd" "$RST" "$GRN" "$RST"
+    printf '  %s→ %-30s%s %stoken: set%s\n' "$DIM" "$cmd" "$RST" "$GRN" "$RST"
   else
-    printf '  %s→ %-24s%s %stoken: not set%s\n' "$DIM" "$cmd" "$RST" "$DIM" "$RST"
+    printf '  %s→ %-30s%s %stoken: not set%s\n' "$DIM" "$cmd" "$RST" "$DIM" "$RST"
   fi
 }
 
@@ -240,10 +240,10 @@ install_one() { # <provider> <command> <template>
   bin="$BIN_DIR/$cmd"
   if [ -n "${HOME:-}" ]; then case $bin in "$HOME"/*) bin="~/${bin#"$HOME"/}";; esac; fi
   if grep -Eq '^ANTHROPIC_AUTH_TOKEN=.+' "$env"; then
-    printf '  %s✔%s %s%s%-10s%s %s%-27s%s %stoken: set%s\n' \
+    printf '  %s✔%s %s%s%-10s%s %s%-29s%s %stoken: set%s\n' \
       "$GRN" "$RST" "$B" "$CYN" "$p" "$RST" "$DIM" "$bin" "$RST" "$GRN" "$RST"
   else
-    printf '  %s✔%s %s%s%-10s%s %s%-27s%s %stoken: not set — edit providers/%s/.env%s\n' \
+    printf '  %s✔%s %s%s%-10s%s %s%-29s%s %stoken: not set — edit providers/%s/.env%s\n' \
       "$GRN" "$RST" "$B" "$CYN" "$p" "$RST" "$DIM" "$bin" "$RST" "$YLW" "$p" "$RST"
   fi
 }
