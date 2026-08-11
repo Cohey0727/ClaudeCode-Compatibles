@@ -6,14 +6,17 @@
 #
 # At a token prompt, pressing Enter with no input keeps whatever token is
 # already in that provider's .env. Old-format .env files are migrated first.
-# Finally the launcher commands are generated from bin/launcher.template
-# into $BIN_DIR (default ~/.local/bin).
+# Finally the launcher commands are generated into $BIN_DIR (default
+# ~/.local/bin): a Claude Code launcher from bin/launcher.template and, for
+# providers that declare OPENCODE_COMMAND, an OpenCode launcher from
+# bin/opencode-launcher.template.
 
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 PROVIDERS_DIR="$ROOT/providers"
 TEMPLATE="$ROOT/bin/launcher.template"
+OPENCODE_TEMPLATE="$ROOT/bin/opencode-launcher.template"
 BIN_DIR="${BIN_DIR:-${PREFIX:-$HOME/.local}/bin}"
 
 # Pretty output: colors only on a TTY, and never when NO_COLOR is set.
@@ -50,6 +53,10 @@ discover_providers() {
 
 provider_command() { # <provider> -> COMMAND declared in its .env.example
   ( . "$PROVIDERS_DIR/$1/.env.example"; printf '%s' "${COMMAND:-$1}" )
+}
+
+provider_opencode_command() { # <provider> -> OPENCODE_COMMAND, "" = no OpenCode launcher
+  ( . "$PROVIDERS_DIR/$1/.env.example"; printf '%s' "${OPENCODE_COMMAND:-}" )
 }
 
 api_key_url() { # <provider> -> signup URL from the .env.example comment, if any
@@ -115,9 +122,11 @@ cleanup_tty() {
 }
 
 draw_item() { # <index>
-  local i=$1 mark cmd tok
+  local i=$1 mark cmd occmd tok
   if [ "${CHECKED[$i]}" = 1 ]; then mark="${GRN}x${RST}"; else mark=' '; fi
   cmd=$(provider_command "${ITEMS[$i]}")
+  occmd=$(provider_opencode_command "${ITEMS[$i]}")
+  if [ -n "$occmd" ]; then cmd="$cmd / $occmd"; fi
   tok=$(current_token "$PROVIDERS_DIR/${ITEMS[$i]}/.env")
   printf '\033[2K\r'
   if [ "$i" = "$CURSOR" ]; then
@@ -126,9 +135,9 @@ draw_item() { # <index>
     printf '  [%s] %s%-12s%s' "$mark" "$B" "${ITEMS[$i]}" "$RST"
   fi
   if [ -n "$tok" ]; then
-    printf '  %s→ %-10s%s %stoken: set%s\n' "$DIM" "$cmd" "$RST" "$GRN" "$RST"
+    printf '  %s→ %-24s%s %stoken: set%s\n' "$DIM" "$cmd" "$RST" "$GRN" "$RST"
   else
-    printf '  %s→ %-10s%s %stoken: not set%s\n' "$DIM" "$cmd" "$RST" "$DIM" "$RST"
+    printf '  %s→ %-24s%s %stoken: not set%s\n' "$DIM" "$cmd" "$RST" "$DIM" "$RST"
   fi
 }
 
@@ -222,21 +231,29 @@ prompt_token() { # <provider>
 
 # ------------------------------------------------------------- installation
 
-install_launcher() { # <provider>
-  local p=$1 dir env cmd bin
+install_one() { # <provider> <command> <template>
+  local p=$1 cmd=$2 template=$3 dir env bin
   dir="$PROVIDERS_DIR/$p"
   env="$dir/.env"
-  cmd=$(provider_command "$p")
-  sed 's|@@PROVIDER_DIR@@|'"$dir"'|g' "$TEMPLATE" > "$BIN_DIR/$cmd"
+  sed 's|@@PROVIDER_DIR@@|'"$dir"'|g' "$template" > "$BIN_DIR/$cmd"
   chmod +x "$BIN_DIR/$cmd"
   bin="$BIN_DIR/$cmd"
   if [ -n "${HOME:-}" ]; then case $bin in "$HOME"/*) bin="~/${bin#"$HOME"/}";; esac; fi
   if grep -Eq '^ANTHROPIC_AUTH_TOKEN=.+' "$env"; then
-    printf '  %s✔%s %s%s%-10s%s %s%-24s%s %stoken: set%s\n' \
+    printf '  %s✔%s %s%s%-10s%s %s%-27s%s %stoken: set%s\n' \
       "$GRN" "$RST" "$B" "$CYN" "$p" "$RST" "$DIM" "$bin" "$RST" "$GRN" "$RST"
   else
-    printf '  %s✔%s %s%s%-10s%s %s%-24s%s %stoken: not set — edit providers/%s/.env%s\n' \
+    printf '  %s✔%s %s%s%-10s%s %s%-27s%s %stoken: not set — edit providers/%s/.env%s\n' \
       "$GRN" "$RST" "$B" "$CYN" "$p" "$RST" "$DIM" "$bin" "$RST" "$YLW" "$p" "$RST"
+  fi
+}
+
+install_launcher() { # <provider> — Claude Code launcher + optional OpenCode launcher
+  local p=$1 occmd
+  install_one "$p" "$(provider_command "$p")" "$TEMPLATE"
+  occmd=$(provider_opencode_command "$p")
+  if [ -n "$occmd" ]; then
+    install_one "$p" "$occmd" "$OPENCODE_TEMPLATE"
   fi
 }
 
@@ -244,6 +261,9 @@ check_environment() {
   echo
   if ! command -v claude >/dev/null 2>&1; then
     printf '  %s⚠%s %s\n' "$YLW" "$RST" "'claude' is not on your PATH — install Claude Code first."
+  fi
+  if ! command -v opencode >/dev/null 2>&1; then
+    printf '  %s⚠%s %s\n' "$YLW" "$RST" "'opencode' is not on your PATH — the open* commands need OpenCode (https://opencode.ai)."
   fi
   case ":$PATH:" in
     *":$BIN_DIR:"*) ;;

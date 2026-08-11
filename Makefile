@@ -19,7 +19,11 @@ uninstall:
 		dir="$(PROVIDERS_DIR)/$$p"; \
 		[ -f "$$dir/.env.example" ] || continue; \
 		cmd=$$(. "$$dir/.env.example"; printf '%s' "$$COMMAND"); \
+		occmd=$$(. "$$dir/.env.example"; printf '%s' "$$OPENCODE_COMMAND"); \
 		rm -f "$(BIN_DIR)/$$cmd" && echo "  Removed $(BIN_DIR)/$$cmd"; \
+		if [ -n "$$occmd" ]; then \
+			rm -f "$(BIN_DIR)/$$occmd" && echo "  Removed $(BIN_DIR)/$$occmd"; \
+		fi; \
 	done
 	@echo "  Note: provider .env files are left in place. Delete them manually if no longer needed."
 
@@ -28,6 +32,7 @@ list:
 		dir="$(PROVIDERS_DIR)/$$p"; \
 		[ -f "$$dir/.env.example" ] || continue; \
 		cmd=$$(. "$$dir/.env.example"; printf '%s' "$$COMMAND"); \
+		occmd=$$(. "$$dir/.env.example"; printf '%s' "$$OPENCODE_COMMAND"); \
 		url=$$(. "$$dir/.env.example"; printf '%s' "$$ANTHROPIC_BASE_URL"); \
-		printf '  %-10s -> %-9s %s\n' "$$p" "$$cmd" "$$url"; \
+		printf '  %-10s -> %-24s %s\n' "$$p" "$$cmd$${occmd:+ / $$occmd}" "$$url"; \
 	done

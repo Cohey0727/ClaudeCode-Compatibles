@@ -25,9 +25,10 @@ set +a
 
 NAME="${COMMAND:-launcher}"
 DEFAULT_ARGS="${CLAUDE_ARGS:-}"
-# COMMAND (launcher name for `make install`) and CLAUDE_ARGS (default CLI
-# options, consumed below) are launcher metadata, not for claude's env.
-unset COMMAND CLAUDE_ARGS
+# COMMAND (launcher name for `make install`), CLAUDE_ARGS (default CLI
+# options, consumed below) and OPENCODE_* (OpenCode launcher settings) are
+# launcher metadata, not for claude's env.
+unset COMMAND CLAUDE_ARGS OPENCODE_COMMAND OPENCODE_ARGS OPENCODE_MODEL OPENCODE_SMALL_MODEL
 
 if [[ -z "${ANTHROPIC_AUTH_TOKEN:-}" ]]; then
   echo "$NAME: ANTHROPIC_AUTH_TOKEN is empty in $ENV_FILE" >&2
