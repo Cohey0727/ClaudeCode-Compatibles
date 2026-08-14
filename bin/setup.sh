@@ -5,19 +5,23 @@
 #   bin/setup.sh deepseek glm     skip the checkbox, still prompt for tokens
 #
 # At a token prompt, pressing Enter with no input keeps whatever token is
-# already in that provider's .env. Old-format .env files are migrated first.
-# Finally the launcher commands are generated into $BIN_DIR (default
-# ~/.local/bin): a Claude Code launcher from bin/launcher.template and, for
-# providers that declare OPENCODE_COMMAND, an OpenCode launcher from
-# bin/opencode-launcher.template.
+# already in that provider's .env. Old-format .env files are migrated first,
+# and settings added to .env.example since are appended. Finally three
+# launcher commands per provider — claude<NAME>, open<NAME>, pi<NAME> — are
+# generated into $BIN_DIR (default ~/.local/bin) from the templates in bin/.
 
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 PROVIDERS_DIR="$ROOT/providers"
+COMMON="$ROOT/bin/common.sh"
 TEMPLATE="$ROOT/bin/launcher.template"
 OPENCODE_TEMPLATE="$ROOT/bin/opencode-launcher.template"
+PI_TEMPLATE="$ROOT/bin/pi-launcher.template"
 BIN_DIR="${BIN_DIR:-${PREFIX:-$HOME/.local}/bin}"
+
+# shellcheck disable=SC1090
+source "$COMMON"
 
 # Pretty output: colors only on a TTY, and never when NO_COLOR is set.
 if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
@@ -51,12 +55,10 @@ discover_providers() {
   return 0
 }
 
-provider_command() { # <provider> -> COMMAND declared in its .env.example
-  ( . "$PROVIDERS_DIR/$1/.env.example"; printf '%s' "${COMMAND:-$1}" )
-}
-
-provider_opencode_command() { # <provider> -> OPENCODE_COMMAND, "" = no OpenCode launcher
-  ( . "$PROVIDERS_DIR/$1/.env.example"; printf '%s' "${OPENCODE_COMMAND:-}" )
+provider_launchers() { # <provider> -> "claude<x> open<x> pi<x>"
+  local file="$PROVIDERS_DIR/$1/.env"
+  [ -f "$file" ] || file="$PROVIDERS_DIR/$1/.env.example"
+  ( . "$file"; launcher_names "$1" )
 }
 
 api_key_url() { # <provider> -> signup URL from the .env.example comment, if any
@@ -64,22 +66,33 @@ api_key_url() { # <provider> -> signup URL from the .env.example comment, if any
     "$PROVIDERS_DIR/$1/.env.example" | head -1
 }
 
+token_key() { # <env file> -> the key holding the token: the highest-priority
+              # one that is present and non-empty, else API_TOKEN
+  local file=$1 key
+  for key in ANTHROPIC_AUTH_TOKEN API_TOKEN; do
+    if grep -qE "^$key=.+" "$file"; then printf '%s' "$key"; return 0; fi
+  done
+  if grep -qE '^API_TOKEN=' "$file"; then printf 'API_TOKEN'; return 0; fi
+  printf 'ANTHROPIC_AUTH_TOKEN'
+}
+
 current_token() { # <env file> -> configured token (new or old format), maybe ""
   [ -f "$1" ] || return 0
   local tok
-  tok=$(grep -E '^ANTHROPIC_AUTH_TOKEN=' "$1" | head -1 | cut -d= -f2- || true)
+  tok=$(grep -E '^(API_TOKEN|ANTHROPIC_AUTH_TOKEN)=.+' "$1" | head -1 | cut -d= -f2- || true)
   if [ -z "$tok" ]; then
     tok=$(grep -E '^[A-Z_]+_API_KEY=.+' "$1" | head -1 | cut -d= -f2- || true)
   fi
   printf '%s' "$tok"
 }
 
-set_token() { # <env file> <token> — rewrite the ANTHROPIC_AUTH_TOKEN= line
-  local file=$1 token=$2 tmp line
+set_token() { # <env file> <token> — rewrite the line holding the token
+  local file=$1 token=$2 key tmp line
+  key=$(token_key "$file")
   tmp=$(mktemp "${file}.XXXXXX")
   while IFS= read -r line || [ -n "$line" ]; do
     case $line in
-      ANTHROPIC_AUTH_TOKEN=*) printf 'ANTHROPIC_AUTH_TOKEN=%s\n' "$token" ;;
+      "$key="*) printf '%s=%s\n' "$key" "$token" ;;
       *) printf '%s\n' "$line" ;;
     esac
   done < "$file" > "$tmp"
@@ -95,7 +108,7 @@ ensure_env() { # <provider> — create .env from example; migrate the old layout
     cp "$dir/.env.example" "$env"
     chmod 600 "$env"
     printf '  %s• created providers/%s/.env from example%s\n' "$DIM" "$p" "$RST"
-  elif ! grep -q '^ANTHROPIC_BASE_URL=' "$env"; then
+  elif ! grep -qE '^(BASE_URL|ANTHROPIC_BASE_URL)=' "$env"; then
     key=$(current_token "$env")
     mv "$env" "$env.bak"
     cp "$dir/.env.example" "$env"
@@ -103,6 +116,37 @@ ensure_env() { # <provider> — create .env from example; migrate the old layout
     if [ -n "$key" ]; then set_token "$env" "$key"; fi
     printf '  %s• migrated old-format providers/%s/.env (backup: .env.bak)%s\n' "$DIM" "$p" "$RST"
   fi
+}
+
+sync_env_keys() { # <provider> — append settings added to .env.example since .env was written
+  local p=$1 dir env tmp line key buf added=0
+  dir="$PROVIDERS_DIR/$p"
+  env="$dir/.env"
+  [ -f "$env" ] || return 0
+  tmp=$(mktemp "${env}.XXXXXX")
+  buf=''
+  while IFS= read -r line || [ -n "$line" ]; do
+    case $line in
+      '#'*|'')
+        # Keep the comment block above a setting with it.
+        buf="$buf$line"$'\n'
+        continue
+        ;;
+    esac
+    key=${line%%=*}
+    case $key in
+      ''|*[!A-Za-z0-9_]*) buf=''; continue ;;
+    esac
+    if grep -q "^$key=" "$env"; then buf=''; continue; fi
+    printf '%s%s\n' "$buf" "$line" >> "$tmp"
+    buf=''
+    added=$((added + 1))
+  done < "$dir/.env.example"
+  if [ "$added" -gt 0 ]; then
+    { printf '\n'; cat "$tmp"; } >> "$env"
+    printf '  %s• added %d new setting(s) to providers/%s/.env%s\n' "$DIM" "$added" "$p" "$RST"
+  fi
+  rm -f "$tmp"
 }
 
 # --------------------------------------------------------- checkbox picker
@@ -122,11 +166,11 @@ cleanup_tty() {
 }
 
 draw_item() { # <index>
-  local i=$1 mark cmd occmd tok
+  local i=$1 mark cmd tok
   if [ "${CHECKED[$i]}" = 1 ]; then mark="${GRN}x${RST}"; else mark=' '; fi
-  cmd=$(provider_command "${ITEMS[$i]}")
-  occmd=$(provider_opencode_command "${ITEMS[$i]}")
-  if [ -n "$occmd" ]; then cmd="$cmd / $occmd"; fi
+  local -a names
+  read -r -a names <<< "$(provider_launchers "${ITEMS[$i]}")"
+  cmd="${names[0]} / ${names[1]} / ${names[2]}"
   tok=$(current_token "$PROVIDERS_DIR/${ITEMS[$i]}/.env")
   printf '\033[2K\r'
   if [ "$i" = "$CURSOR" ]; then
@@ -135,9 +179,9 @@ draw_item() { # <index>
     printf '  [%s] %s%-12s%s' "$mark" "$B" "${ITEMS[$i]}" "$RST"
   fi
   if [ -n "$tok" ]; then
-    printf '  %s→ %-30s%s %stoken: set%s\n' "$DIM" "$cmd" "$RST" "$GRN" "$RST"
+    printf '  %s→ %-44s%s %stoken: set%s\n' "$DIM" "$cmd" "$RST" "$GRN" "$RST"
   else
-    printf '  %s→ %-30s%s %stoken: not set%s\n' "$DIM" "$cmd" "$RST" "$DIM" "$RST"
+    printf '  %s→ %-44s%s %stoken: not set%s\n' "$DIM" "$cmd" "$RST" "$DIM" "$RST"
   fi
 }
 
@@ -235,11 +279,12 @@ install_one() { # <provider> <command> <template>
   local p=$1 cmd=$2 template=$3 dir env bin
   dir="$PROVIDERS_DIR/$p"
   env="$dir/.env"
-  sed 's|@@PROVIDER_DIR@@|'"$dir"'|g' "$template" > "$BIN_DIR/$cmd"
+  sed -e 's|@@PROVIDER_DIR@@|'"$dir"'|g' -e 's|@@COMMON@@|'"$COMMON"'|g' \
+    "$template" > "$BIN_DIR/$cmd"
   chmod +x "$BIN_DIR/$cmd"
   bin="$BIN_DIR/$cmd"
   if [ -n "${HOME:-}" ]; then case $bin in "$HOME"/*) bin="~/${bin#"$HOME"/}";; esac; fi
-  if grep -Eq '^ANTHROPIC_AUTH_TOKEN=.+' "$env"; then
+  if grep -Eq '^(API_TOKEN|ANTHROPIC_AUTH_TOKEN)=.+' "$env"; then
     printf '  %s✔%s %s%s%-10s%s %s%-29s%s %stoken: set%s\n' \
       "$GRN" "$RST" "$B" "$CYN" "$p" "$RST" "$DIM" "$bin" "$RST" "$GRN" "$RST"
   else
@@ -248,13 +293,13 @@ install_one() { # <provider> <command> <template>
   fi
 }
 
-install_launcher() { # <provider> — Claude Code launcher + optional OpenCode launcher
-  local p=$1 occmd
-  install_one "$p" "$(provider_command "$p")" "$TEMPLATE"
-  occmd=$(provider_opencode_command "$p")
-  if [ -n "$occmd" ]; then
-    install_one "$p" "$occmd" "$OPENCODE_TEMPLATE"
-  fi
+install_launcher() { # <provider> — one launcher per CLI
+  local p=$1
+  local -a names
+  read -r -a names <<< "$(provider_launchers "$p")"
+  install_one "$p" "${names[0]}" "$TEMPLATE"
+  install_one "$p" "${names[1]}" "$OPENCODE_TEMPLATE"
+  install_one "$p" "${names[2]}" "$PI_TEMPLATE"
 }
 
 check_environment() {
@@ -264,6 +309,9 @@ check_environment() {
   fi
   if ! command -v opencode >/dev/null 2>&1; then
     printf '  %s⚠%s %s\n' "$YLW" "$RST" "'opencode' is not on your PATH — the open* commands need OpenCode (https://opencode.ai)."
+  fi
+  if ! command -v pi >/dev/null 2>&1; then
+    printf '  %s⚠%s %s\n' "$YLW" "$RST" "'pi' is not on your PATH — the pi* commands need the pi coding agent (https://pi.dev)."
   fi
   case ":$PATH:" in
     *":$BIN_DIR:"*) ;;
@@ -316,6 +364,7 @@ main() {
 
   for p in "${providers[@]}"; do
     ensure_env "$p"
+    sync_env_keys "$p"
     prompt_token "$p"
   done
 

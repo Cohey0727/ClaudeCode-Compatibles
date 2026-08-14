@@ -1,8 +1,10 @@
+SHELL   := /bin/bash
 PREFIX  ?= $(HOME)/.local
 BIN_DIR := $(PREFIX)/bin
 
 ROOT          := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 PROVIDERS_DIR := $(ROOT)/providers
+COMMON        := $(ROOT)/bin/common.sh
 
 # Every target acts on all directories under providers/.
 PROVIDER_LIST := $(notdir $(wildcard $(PROVIDERS_DIR)/*))
@@ -18,12 +20,9 @@ uninstall:
 	@for p in $(PROVIDER_LIST); do \
 		dir="$(PROVIDERS_DIR)/$$p"; \
 		[ -f "$$dir/.env.example" ] || continue; \
-		cmd=$$(. "$$dir/.env.example"; printf '%s' "$$COMMAND"); \
-		occmd=$$(. "$$dir/.env.example"; printf '%s' "$$OPENCODE_COMMAND"); \
-		rm -f "$(BIN_DIR)/$$cmd" && echo "  Removed $(BIN_DIR)/$$cmd"; \
-		if [ -n "$$occmd" ]; then \
-			rm -f "$(BIN_DIR)/$$occmd" && echo "  Removed $(BIN_DIR)/$$occmd"; \
-		fi; \
+		for cmd in $$(. "$(COMMON)"; . "$$dir/.env.example"; launcher_names "$$p"); do \
+			rm -f "$(BIN_DIR)/$$cmd" && echo "  Removed $(BIN_DIR)/$$cmd"; \
+		done; \
 	done
 	@echo "  Note: provider .env files are left in place. Delete them manually if no longer needed."
 
@@ -31,8 +30,7 @@ list:
 	@for p in $(PROVIDER_LIST); do \
 		dir="$(PROVIDERS_DIR)/$$p"; \
 		[ -f "$$dir/.env.example" ] || continue; \
-		cmd=$$(. "$$dir/.env.example"; printf '%s' "$$COMMAND"); \
-		occmd=$$(. "$$dir/.env.example"; printf '%s' "$$OPENCODE_COMMAND"); \
-		url=$$(. "$$dir/.env.example"; printf '%s' "$$ANTHROPIC_BASE_URL"); \
-		printf '  %-10s -> %-30s %s\n' "$$p" "$$cmd$${occmd:+ / $$occmd}" "$$url"; \
+		cmds=$$(. "$(COMMON)"; . "$$dir/.env.example"; launcher_names "$$p" | sed 's| | / |g'); \
+		url=$$(. "$(COMMON)"; . "$$dir/.env.example"; pick ANTHROPIC_BASE_URL BASE_URL); \
+		printf '  %-10s -> %-44s %s\n' "$$p" "$$cmds" "$$url"; \
 	done
