@@ -9,7 +9,7 @@ COMMON        := $(ROOT)/bin/common.sh
 # Every target acts on all directories under providers/.
 PROVIDER_LIST := $(notdir $(wildcard $(PROVIDERS_DIR)/*))
 
-.PHONY: setup uninstall list
+.PHONY: setup uninstall list pi-global
 
 # Interactive wizard: checkbox provider picker, per-provider API token
 # prompts (Enter keeps the current token), launcher install, PATH checks.
@@ -34,3 +34,8 @@ list:
 		url=$$(. "$(COMMON)"; . "$$dir/.env.example"; pick ANTHROPIC_BASE_URL BASE_URL); \
 		printf '  %-10s -> %-44s %s\n' "$$p" "$$cmds" "$$url"; \
 	done
+
+# Register every provider in pi's global models.json, so a bare `pi` sees them
+# too. The pi<name> launchers do not need this.
+pi-global:
+	@"$(ROOT)/bin/pi-global-models.sh"

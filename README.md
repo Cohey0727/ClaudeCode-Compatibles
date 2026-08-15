@@ -27,12 +27,13 @@ bin/common.sh                   # shared settings resolution (generic setting <-
 bin/launcher.template           # Claude Code launcher; @@PROVIDER_DIR@@ baked in at setup time
 bin/opencode-launcher.template  # OpenCode launcher; same .env, generates .opencode.json per launch
 bin/pi-launcher.template        # pi launcher; same .env, generates .pi-agent/ per launch
+bin/pi-global-models.sh         # registers every provider in pi's global models.json (`make pi-global`)
 bin/setup.sh                    # interactive wizard: pick providers, paste tokens, install (`make setup`)
 providers/<name>/.env           # all settings: key, endpoint, models (gitignored, chmod 600)
 providers/<name>/.env.example   # same file with an empty API_TOKEN (in git)
 providers/<name>/.opencode.json # generated OpenCode config, no secrets (gitignored)
 providers/<name>/.pi-agent/     # generated pi agent dir, no secrets (gitignored)
-Makefile                        # setup / uninstall / list
+Makefile                        # setup / uninstall / list / pi-global
 ```
 
 Adding a provider is just a new `providers/<name>/` folder with a `.env.example`.
@@ -51,10 +52,11 @@ Adding a provider is just a new `providers/<name>/` folder with a `.env.example`
   ```
 - [pi](https://pi.dev) (`pi` on your PATH) — only for the `pi*` commands. Not bundled by this repo either:
   ```bash
-  npm install -g @mariozechner/pi-coding-agent
+  npm install -g @earendil-works/pi-coding-agent
   # or
   curl -fsSL https://pi.dev/install.sh | sh
   ```
+  (the older `@mariozechner/pi-coding-agent` package is deprecated and resolves environment references differently)
 - An API key for whichever provider(s) you use
 
 ## Setup
@@ -198,9 +200,17 @@ into it as symlinks and only `models.json` is replaced; sessions stay in
 holds a `<name>-anthropic` provider with `api: "anthropic-messages"` and
 `baseUrl` set to `BASE_URL` as-is (pi hands it to the Anthropic SDK, which
 appends `/v1/messages`), plus the two models with their limits. The token
-stays out of the file here too: `apiKey` holds the *name*
-`ANTHROPIC_AUTH_TOKEN`, which pi resolves from the environment. Finally it
-`exec`s `pi --model <name>-anthropic/<MODEL> $ARGS "$@"`.
+stays out of the file here too: `apiKey` holds the reference
+`${ANTHROPIC_AUTH_TOKEN}`, which pi interpolates from the environment at
+request time. Finally it `exec`s `pi --model <name>-anthropic/<MODEL> $ARGS
+"$@"`.
+
+A bare `pi` (no launcher) has none of that, so it starts with no models at
+all. `make pi-global` writes the same provider definitions into
+`~/.pi/agent/models.json`, where the token is a `!`-prefixed shell command
+that reads it back out of `providers/<name>/.env` — still no secret in the
+file, and `.env` stays the single source of truth. Re-run it after changing a
+model or endpoint.
 
 Because pi has no subagents, `SMALL_MODEL` is not a slot the agent uses on its
 own there — it is just the other entry in the Ctrl+P cycling list
@@ -220,8 +230,18 @@ brew install sst/tap/opencode   # or: npm install -g opencode-ai
 
 **`'pi' is not on your PATH — install the pi coding agent first`** — same story for the `pi*` commands:
 ```bash
-npm install -g @mariozechner/pi-coding-agent   # or: curl -fsSL https://pi.dev/install.sh | sh
+npm install -g @earendil-works/pi-coding-agent   # or: curl -fsSL https://pi.dev/install.sh | sh
 ```
+
+**pi answers `401 ... Your api key: ****OKEN is invalid`** — the generated
+`models.json` refers to the token as `${ANTHROPIC_AUTH_TOKEN}`, which pi 0.8x
+interpolates from the environment. The deprecated `@mariozechner` package
+(0.73 and older) expects a bare variable name instead and sends the reference
+itself as the key. Install `@earendil-works/pi-coding-agent`.
+
+**A bare `pi` says `No models available`** — only the `pi<name>` launchers
+configure a provider. Run `make pi-global` to register all of them in
+`~/.pi/agent/models.json` as well.
 
 **`API_TOKEN is empty`** — re-run `make setup`, or set the key in `providers/<name>/.env` directly.
 

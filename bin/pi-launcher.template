@@ -33,46 +33,9 @@ if ! command -v pi >/dev/null 2>&1; then
   exit 1
 fi
 
-MODEL="${PI_MODEL:-$CFG_MODEL_PLAIN}"
-MODEL="${MODEL%\[1m\]}"
-SMALL_MODEL="${PI_SMALL_MODEL:-$CFG_SMALL_MODEL_PLAIN}"
-SMALL_MODEL="${SMALL_MODEL%\[1m\]}"
+pi_resolve
 
-# pi assumes 128k context / 16k output for models it does not know and caps
-# each request at maxTokens/3, so both limits are always written out.
-CONTEXT_WINDOW="${CFG_CONTEXT_WINDOW:-200000}"
-MAX_TOKENS="${CFG_MAX_TOKENS:-32768}"
-SMALL_CONTEXT_WINDOW="${CFG_SMALL_CONTEXT_WINDOW:-$CONTEXT_WINDOW}"
-SMALL_MAX_TOKENS="${CFG_SMALL_MAX_TOKENS:-$MAX_TOKENS}"
-
-REASONING="$CFG_REASONING"
-if [[ "$REASONING" != "true" ]]; then REASONING=false; fi
-
-case ",$CFG_INPUT," in
-  *,image,*) INPUT='["text", "image"]' ;;
-  *)         INPUT='["text"]' ;;
-esac
-
-PROVIDER_NAME="$(basename "$PROVIDER_DIR")"
-PROVIDER_ID="$PROVIDER_NAME-anthropic"
-
-model_entry() { # <model id> <context window> <max tokens>
-  cat <<EOF
-        {
-          "id": "$1",
-          "reasoning": $REASONING,
-          "input": $INPUT,
-          "contextWindow": $2,
-          "maxTokens": $3
-        }
-EOF
-}
-
-MODELS_JSON=$(model_entry "$MODEL" "$CONTEXT_WINDOW" "$MAX_TOKENS")
-if [[ "$SMALL_MODEL" != "$MODEL" ]]; then
-  MODELS_JSON="$MODELS_JSON,
-$(model_entry "$SMALL_MODEL" "$SMALL_CONTEXT_WINDOW" "$SMALL_MAX_TOKENS")"
-fi
+PROVIDER_ID="$(basename "$PROVIDER_DIR")-anthropic"
 
 # pi reads models.json from its agent directory only, and PI_CODING_AGENT_DIR
 # moves that whole directory — settings, auth, skills, prompts, themes and
@@ -99,22 +62,15 @@ fi
 shopt -u nullglob dotglob
 
 # Regenerated on every launch so .env stays the single source of truth.
-# Contains no secrets: "ANTHROPIC_AUTH_TOKEN" is the name of the environment
-# variable pi reads the key from, not the key itself.
-cat > "$AGENT_DIR/models.json" <<EOF
+# Contains no secrets: "${ANTHROPIC_AUTH_TOKEN}" is an environment variable
+# reference pi interpolates at request time, not the key itself.
 {
-  "providers": {
-    "$PROVIDER_ID": {
-      "baseUrl": "$CFG_BASE_URL",
-      "api": "anthropic-messages",
-      "apiKey": "ANTHROPIC_AUTH_TOKEN",
-      "models": [
-$MODELS_JSON
-      ]
-    }
-  }
-}
-EOF
+  echo '{'
+  echo '  "providers": {'
+  pi_provider_json "$PROVIDER_ID" '${ANTHROPIC_AUTH_TOKEN}'
+  echo '  }'
+  echo '}'
+} > "$AGENT_DIR/models.json"
 
 # pi hands baseUrl to the Anthropic SDK, which appends "/v1/messages" — the
 # same route Claude Code hits, so BASE_URL is used as-is.
@@ -123,9 +79,9 @@ export PI_CODING_AGENT_DIR="$AGENT_DIR"
 # Sessions belong to the user, not to a provider checkout.
 export PI_CODING_AGENT_SESSION_DIR="${PI_CODING_AGENT_SESSION_DIR:-$GLOBAL_AGENT_DIR/sessions}"
 
-MODEL_ARGS=(--model "$PROVIDER_ID/$MODEL")
-if [[ "$SMALL_MODEL" != "$MODEL" ]]; then
-  MODEL_ARGS+=(--models "$PROVIDER_ID/$MODEL,$PROVIDER_ID/$SMALL_MODEL")
+MODEL_ARGS=(--model "$PROVIDER_ID/$PI_CFG_MODEL")
+if [[ "$PI_CFG_SMALL_MODEL" != "$PI_CFG_MODEL" ]]; then
+  MODEL_ARGS+=(--models "$PROVIDER_ID/$PI_CFG_MODEL,$PROVIDER_ID/$PI_CFG_SMALL_MODEL")
 fi
 
 DEFAULT_ARGS="${PI_ARGS:-$CFG_ARGS}"
