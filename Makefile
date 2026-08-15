@@ -24,6 +24,10 @@ uninstall:
 			rm -f "$(BIN_DIR)/$$cmd" && echo "  Removed $(BIN_DIR)/$$cmd"; \
 		done; \
 	done
+	@. "$(COMMON)"; out=$$(pi_global_models_path); \
+		if [ -f "$$out" ] && [ "$$(head -1 "$$out")" = "$$PI_GLOBAL_MARKER" ]; then \
+			rm -f "$$out" && echo "  Removed $$out"; \
+		fi
 	@echo "  Note: provider .env files are left in place. Delete them manually if no longer needed."
 
 list:

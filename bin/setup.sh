@@ -127,23 +127,21 @@ sync_env_keys() { # <provider> — append settings added to .env.example since .
   buf=''
   while IFS= read -r line || [ -n "$line" ]; do
     case $line in
-      '#'*|'')
-        # Keep the comment block above a setting with it.
-        buf="$buf$line"$'\n'
-        continue
-        ;;
+      # A blank line ends a block; the comments right above a setting come with it.
+      '') buf=''; continue ;;
+      '#'*) buf="$buf$line"$'\n'; continue ;;
     esac
     key=${line%%=*}
     case $key in
       ''|*[!A-Za-z0-9_]*) buf=''; continue ;;
     esac
     if grep -q "^$key=" "$env"; then buf=''; continue; fi
-    printf '%s%s\n' "$buf" "$line" >> "$tmp"
+    printf '\n%s%s\n' "$buf" "$line" >> "$tmp"
     buf=''
     added=$((added + 1))
   done < "$dir/.env.example"
   if [ "$added" -gt 0 ]; then
-    { printf '\n'; cat "$tmp"; } >> "$env"
+    cat "$tmp" >> "$env"
     printf '  %s• added %d new setting(s) to providers/%s/.env%s\n' "$DIM" "$added" "$p" "$RST"
   fi
   rm -f "$tmp"

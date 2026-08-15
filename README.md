@@ -9,8 +9,10 @@ One repo that installs global commands to launch [Claude Code](https://docs.anth
 | DeepSeek | `claudedeepseek` | `opendeepseek` | `pideepseek` | `https://api.deepseek.com/anthropic` | `deepseek-v4-pro` |
 | MiniMax  | `claudemmx` | `openmmx` | `pimmx` | `https://api.minimax.io/anthropic`   | `MiniMax-M3` |
 | GLM (Z.ai) | `claudeglm` | `openglm` | `piglm` | `https://api.z.ai/api/anthropic`     | `glm-5.2` |
-| Kimi (Moonshot) | `claudekimi` | `openkimi` | `pikimi` | `https://api.kimi.com/coding` | `kimi-k3[1m]` |
-| MiMo (Xiaomi) | `claudemimo` | `openmimo` | `pimimo` | `https://token-plan-sgp.xiaomimimo.com/anthropic` | `mimo-v2.5-pro[1m]` |
+| Kimi (Moonshot) | `claudekimi` | `openkimi` | `pikimi` | `https://api.kimi.com/coding` | `kimi-k3` |
+| MiMo (Xiaomi) | `claudemimo` | `openmimo` | `pimimo` | `https://token-plan-sgp.xiaomimimo.com/anthropic` | `mimo-v2.5-pro` |
+
+Kimi and MiMo run that flagship as its 1M-context variant under Claude Code (`kimi-k3[1m]`); OpenCode and pi take the plain id.
 
 Each provider exposes a native Anthropic-compatible endpoint, so there is no proxy or translation layer — just environment variables. The `open*` and `pi*` commands run their CLI against the very same endpoint and token: all three launchers of a provider share the single `providers/<name>/.env`.
 
@@ -74,6 +76,15 @@ One interactive wizard does everything:
 5. You get a warning if `~/.local/bin`, `claude`, `opencode` or `pi` is missing from your PATH
 
 To rotate a token, pick up new settings or add a provider later, just re-run `make setup`.
+
+### Make targets
+
+| Target | What it does |
+|--------|--------------|
+| `make setup` | The wizard above: tokens, `.env` upkeep, launcher install |
+| `make list` | Show every provider's commands and endpoint |
+| `make pi-global` | Register every provider in `~/.pi/agent/models.json` as well, so a bare `pi` (no launcher) can use them |
+| `make uninstall` | Remove the installed launchers, and the global `models.json` if `make pi-global` wrote it. Provider `.env` files are left alone |
 
 ## Usage
 
