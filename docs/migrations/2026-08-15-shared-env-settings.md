@@ -67,14 +67,14 @@ make list
 |---|---|---|---|---|---|
 | `NAME` | `deepseek` | `glm` | `kimi` | `mimo` | `mmx` |
 | `BASE_URL` | `https://api.deepseek.com/anthropic` | `https://api.z.ai/api/anthropic` | `https://api.kimi.com/coding` | `https://token-plan-sgp.xiaomimimo.com/anthropic` | `https://api.minimax.io/anthropic` |
-| `MODEL` | `deepseek-v4-pro` | `glm-5.2` | `kimi-k3` | `mimo-v2.5-pro` | `MiniMax-M3` |
-| `SMALL_MODEL` | `deepseek-v4-flash` | `glm-4.5-air` | `kimi-k3` | `mimo-v2.5-pro` | `MiniMax-M3` |
+| `MODEL` | `deepseek-v4-pro` | `glm-5.3` | `kimi-k3` | `mimo-v2.5-pro` | `MiniMax-M3` |
+| `SMALL_MODEL` | `deepseek-v4-flash` | `glm-4.7` | `kimi-k3` | `mimo-v2.5-pro` | `MiniMax-M3` |
 | `CONTEXT_WINDOW` | `1000000` | `1000000` | `1048576` | `1048576` | `1000000` |
 | `MAX_TOKENS` | `384000` | `131072` | `131072` | `131072` | `128000` |
 | `REASONING` | `true` | `true` | `true` | `true` | `true` |
 | `INPUT` | `text` | `text` | `text,image` | `text` | `text,image` |
 | `CLAUDE_MODEL_SUFFIX` | — | — | `[1m]` | `[1m]` | — |
-| その他 | `CLAUDE_CODE_EFFORT_LEVEL=max` | 左に加えて `SMALL_CONTEXT_WINDOW=131072` / `SMALL_MAX_TOKENS=98304` | 左に加えて `ENABLE_TOOL_SEARCH=false` | 左に加えて `ENABLE_TOOL_SEARCH=false` | `CLAUDE_CODE_EFFORT_LEVEL=max` |
+| その他 | `CLAUDE_CODE_EFFORT_LEVEL=max` | 左に加えて `SMALL_CONTEXT_WINDOW=200000` / `SMALL_MAX_TOKENS=131072` | 左に加えて `ENABLE_TOOL_SEARCH=false` | 左に加えて `ENABLE_TOOL_SEARCH=false` | `CLAUDE_CODE_EFFORT_LEVEL=max` |
 
 deepseek の移行例:
 

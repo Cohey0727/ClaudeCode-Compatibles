@@ -8,7 +8,7 @@ One repo that installs global commands to launch [Claude Code](https://docs.anth
 |----------|-------------|----------|----|-----------------------------------|----------------|
 | DeepSeek | `claudedeepseek` | `opendeepseek` | `pideepseek` | `https://api.deepseek.com/anthropic` | `deepseek-v4-pro` |
 | MiniMax  | `claudemmx` | `openmmx` | `pimmx` | `https://api.minimax.io/anthropic`   | `MiniMax-M3` |
-| GLM (Z.ai) | `claudeglm` | `openglm` | `piglm` | `https://api.z.ai/api/anthropic`     | `glm-5.2` |
+| GLM (Z.ai) | `claudeglm` | `openglm` | `piglm` | `https://api.z.ai/api/anthropic`     | `glm-5.3` |
 | Kimi (Moonshot) | `claudekimi` | `openkimi` | `pikimi` | `https://api.kimi.com/coding` | `kimi-k3` |
 | MiMo (Xiaomi) | `claudemimo` | `openmimo` | `pimimo` | `https://token-plan-sgp.xiaomimimo.com/anthropic` | `mimo-v2.5-pro` |
 
@@ -78,7 +78,8 @@ One interactive wizard does everything:
 To rotate a token, pick up new settings or add a provider later, just re-run `make setup`.
 
 Coming from an older checkout? `docs/migrations/` has the per-variable
-mapping — see [2026-08-15 — pi 対応と `.env` の共通設定化](docs/migrations/2026-08-15-shared-env-settings.md).
+mapping — see [2026-08-15 — pi 対応と `.env` の共通設定化](docs/migrations/2026-08-15-shared-env-settings.md)
+and [2026-08-15 — GLM-5.3](docs/migrations/2026-08-15-glm-5.3.md).
 
 ### Make targets
 
@@ -184,7 +185,7 @@ ARGS=
 | `MODEL` | Fills every main model slot: Claude Code's opus / sonnet / fable, OpenCode's `model`, the model pi starts on |
 | `SMALL_MODEL` | Fills every cheap slot: Claude Code's haiku + subagent, OpenCode's `small_model`, pi's second Ctrl+P entry. Defaults to `MODEL` |
 | `CONTEXT_WINDOW`, `MAX_TOKENS` | Model limits. pi writes them into its generated `models.json` (it otherwise assumes 128k / 16k and caps each request at `MAX_TOKENS`/3), and Claude Code takes `CONTEXT_WINDOW` as its auto-compact window |
-| `SMALL_CONTEXT_WINDOW`, `SMALL_MAX_TOKENS` | The same two limits for `SMALL_MODEL` when it is a different size — GLM sets them for `glm-4.5-air`. Default to the values above |
+| `SMALL_CONTEXT_WINDOW`, `SMALL_MAX_TOKENS` | The same two limits for `SMALL_MODEL` when it is a different size — GLM sets them for `glm-4.7`. Default to the values above |
 | `REASONING`, `INPUT` | Whether the models support extended thinking (`true`/`false`) and what they accept (`text` or `text,image`) |
 | `ARGS` | Default CLI options prepended to every launch, for all three CLIs (word-split; your command-line arguments come after them) |
 
