@@ -6,9 +6,10 @@
 #
 # At a token prompt, pressing Enter with no input keeps whatever token is
 # already in that provider's .env. Old-format .env files are migrated first,
-# and settings added to .env.example since are appended. Finally three
-# launcher commands per provider — claude<NAME>, open<NAME>, pi<NAME> — are
-# generated into $BIN_DIR (default ~/.local/bin) from the templates in bin/.
+# and settings added to .env.example since are appended. Then three launcher
+# commands per provider — claude<NAME>, open<NAME>, pi<NAME> — are generated
+# into $BIN_DIR (default ~/.local/bin) from the templates in bin/, and the pi
+# packages in $PI_PACKAGES are installed into pi's user settings.
 
 set -euo pipefail
 
@@ -300,6 +301,34 @@ install_launcher() { # <provider> — one launcher per CLI
   install_one "$p" "${names[2]}" "$PI_TEMPLATE"
 }
 
+# pi resolves packages from its agent directory, which every pi<NAME> launcher
+# mirrors as symlinks — so one user-scope install covers all of them.
+install_pi_packages() {
+  local spec src cmd
+  echo
+  printf '%s▸ installing pi packages%s\n' "$B$CYN" "$RST"
+  if ! command -v pi >/dev/null 2>&1; then
+    printf '  %s⚠%s %s\n' "$YLW" "$RST" \
+      "skipped — 'pi' is not on your PATH. Install it (https://pi.dev), then re-run."
+    return 0
+  fi
+  # shellcheck disable=SC2086  # word-splitting PI_PACKAGES is intended
+  for spec in $PI_PACKAGES; do
+    src=$(pi_package_source "$spec")
+    cmd=$(pi_package_command "$spec")
+    if pi_package_installed "$src"; then
+      printf '  %s✔%s %s%-26s%s %s%-6s%s %salready installed%s\n' \
+        "$GRN" "$RST" "$B" "$src" "$RST" "$CYN" "$cmd" "$RST" "$DIM" "$RST"
+    elif pi install "$src" --no-approve >/dev/null 2>&1; then
+      printf '  %s✔%s %s%-26s%s %s%-6s%s\n' \
+        "$GRN" "$RST" "$B" "$src" "$RST" "$CYN" "$cmd" "$RST"
+    else
+      printf '  %s⚠%s %s%-26s%s %sfailed — run '\''pi install %s'\'' by hand%s\n' \
+        "$YLW" "$RST" "$B" "$src" "$RST" "$YLW" "$src" "$RST"
+    fi
+  done
+}
+
 check_environment() {
   echo
   if ! command -v claude >/dev/null 2>&1; then
@@ -372,6 +401,8 @@ main() {
   for p in "${providers[@]}"; do
     install_launcher "$p"
   done
+
+  install_pi_packages
 
   check_environment
 }

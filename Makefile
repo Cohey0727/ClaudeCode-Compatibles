@@ -12,7 +12,8 @@ PROVIDER_LIST := $(notdir $(wildcard $(PROVIDERS_DIR)/*))
 .PHONY: setup uninstall list pi-global
 
 # Interactive wizard: checkbox provider picker, per-provider API token
-# prompts (Enter keeps the current token), launcher install, PATH checks.
+# prompts (Enter keeps the current token), launcher install, pi package
+# install, PATH checks.
 setup:
 	@BIN_DIR="$(BIN_DIR)" "$(ROOT)/bin/setup.sh"
 
@@ -28,6 +29,16 @@ uninstall:
 		if [ -f "$$out" ] && [ "$$(head -1 "$$out")" = "$$PI_GLOBAL_MARKER" ]; then \
 			rm -f "$$out" && echo "  Removed $$out"; \
 		fi
+	@if command -v pi >/dev/null 2>&1; then \
+		. "$(COMMON)"; \
+		for spec in $$PI_PACKAGES; do \
+			src=$$(pi_package_source "$$spec"); \
+			if pi_package_installed "$$src"; then \
+				pi remove "$$src" --no-approve >/dev/null 2>&1 \
+					&& echo "  Removed pi package $$src"; \
+			fi; \
+		done; \
+	fi
 	@echo "  Note: provider .env files are left in place. Delete them manually if no longer needed."
 
 list:

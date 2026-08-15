@@ -38,10 +38,11 @@ pi_resolve
 PROVIDER_ID="$(basename "$PROVIDER_DIR")-anthropic"
 
 # pi reads models.json from its agent directory only, and PI_CODING_AGENT_DIR
-# moves that whole directory — settings, auth, skills, prompts, themes and
-# tools included. So the agent dir is mirrored here as symlinks and only
-# models.json is replaced, leaving the global pi setup intact.
-GLOBAL_AGENT_DIR="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
+# moves that whole directory — settings, auth, skills, prompts, themes, tools
+# and installed packages included. So the agent dir is mirrored here as
+# symlinks and only models.json is replaced, leaving the global pi setup
+# intact.
+GLOBAL_AGENT_DIR="$(pi_agent_dir)"
 AGENT_DIR="$PROVIDER_DIR/.pi-agent"
 
 mkdir -p "$AGENT_DIR"

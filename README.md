@@ -55,8 +55,6 @@ Adding a provider is just a new `providers/<name>/` folder with a `.env.example`
   ```
 - [pi](https://pi.dev) (`pi` on your PATH) — only for the `pi*` commands. Not bundled by this repo either:
   ```bash
-  npm install -g @earendil-works/pi-coding-agent
-  # or
   curl -fsSL https://pi.dev/install.sh | sh
   ```
   (the older `@mariozechner/pi-coding-agent` package is deprecated and resolves environment references differently)
@@ -74,7 +72,8 @@ One interactive wizard does everything:
 2. Paste each API token — an empty answer keeps the existing token
 3. Each provider's `.env` is created from `.env.example` if missing (`chmod 600`); an existing `.env` gets any settings that were added to `.env.example` since, appended with their comments and your token untouched
 4. Three commands per provider are generated in `~/.local/bin` — `claude<NAME>`, `open<NAME>` and `pi<NAME>`, with the provider folder path baked in
-5. You get a warning if `~/.local/bin`, `claude`, `opencode` or `pi` is missing from your PATH
+5. The pi packages that add [`/loop` and `/goal`](#loops-in-pi) are installed once into pi's user settings (`~/.pi/agent/settings.json`), shared by every `pi<NAME>`
+6. You get a warning if `~/.local/bin`, `claude`, `opencode` or `pi` is missing from your PATH
 
 To rotate a token, pick up new settings or add a provider later, just re-run `make setup`.
 
@@ -85,10 +84,10 @@ mapping — see [2026-08-15 — pi 対応と `.env` の共通設定化](docs/mig
 
 | Target | What it does |
 |--------|--------------|
-| `make setup` | The wizard above: tokens, `.env` upkeep, launcher install |
+| `make setup` | The wizard above: tokens, `.env` upkeep, launcher install, pi packages |
 | `make list` | Show every provider's commands and endpoint |
 | `make pi-global` | Register every provider in `~/.pi/agent/models.json` as well, so a bare `pi` (no launcher) can use them |
-| `make uninstall` | Remove the installed launchers, and the global `models.json` if `make pi-global` wrote it. Provider `.env` files are left alone |
+| `make uninstall` | Remove the installed launchers, the pi packages from `$PI_PACKAGES`, and the global `models.json` if `make pi-global` wrote it. Provider `.env` files are left alone |
 
 ## Usage
 
@@ -126,6 +125,37 @@ A `--model` you pass yourself wins over the one the `pi*` launcher pins, so you 
 ```bash
 pideepseek --model deepseek-anthropic/deepseek-v4-flash
 ```
+
+### Loops in pi
+
+pi keeps its core small and ships no loop of its own — nor sub-agents, MCP,
+plan mode or to-dos. Everything of that kind lives in
+[pi packages](https://pi.dev/packages), so `make setup` installs two of them
+and the `pi<NAME>` commands can iterate unattended the way Claude Code's
+`/loop` and `/goal` do:
+
+| Package | Adds | What it does |
+|---------|------|--------------|
+| [`npm:@realvendex/pi-loop`](https://github.com/ZachDreamZ/pi-loop) | `/loop` | Repeat a prompt until a stop condition: `--max N`, `--until "TEXT"`, `--until-stable N` (convergence), `--timeout 5m`, `--yes` for autopilot |
+| `npm:pi-goal` | `/goal` | A persistent objective the agent keeps working on across turns until it is complete, paused, or out of budget |
+
+```
+/loop "make the tests pass" --until-stable 2 --max 20
+/goal "port the CLI flags to the new parser"
+```
+
+They go into pi's user settings, so a bare `pi` gets them too. Install a
+different set by overriding `PI_PACKAGES` with `<source>=<slash command>`
+pairs — an empty command just leaves the label off:
+
+```bash
+PI_PACKAGES="npm:pi-reactor=/reactor npm:pi-loop-police=" make setup
+```
+
+> **Note:** pi packages run with full system access and the registry is not
+> curated. Both packages above are third-party npm packages — read the source
+> before trusting them with an unattended loop, and prefer a container or a
+> throwaway checkout for autopilot runs.
 
 ## `.env` settings
 
