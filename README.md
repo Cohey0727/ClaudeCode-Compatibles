@@ -35,6 +35,7 @@ providers/<name>/.env           # all settings: key, endpoint, models (gitignore
 providers/<name>/.env.example   # same file with an empty API_TOKEN (in git)
 providers/<name>/.opencode.json # generated OpenCode config, no secrets (gitignored)
 providers/<name>/.pi-agent/     # generated pi agent dir, no secrets (gitignored)
+docs/migrations/                # upgrade notes for existing checkouts
 Makefile                        # setup / uninstall / list / pi-global
 ```
 
@@ -76,6 +77,9 @@ One interactive wizard does everything:
 5. You get a warning if `~/.local/bin`, `claude`, `opencode` or `pi` is missing from your PATH
 
 To rotate a token, pick up new settings or add a provider later, just re-run `make setup`.
+
+Coming from an older checkout? `docs/migrations/` has the per-variable
+mapping — see [2026-08-15 — pi 対応と `.env` の共通設定化](docs/migrations/2026-08-15-shared-env-settings.md).
 
 ### Make targets
 
