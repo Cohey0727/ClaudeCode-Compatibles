@@ -1,6 +1,6 @@
 # ClaudeCode-Compatibles
 
-> Run Claude Code, OpenCode and pi on Anthropic-compatible LLM backends (DeepSeek · MiniMax · GLM · Kimi · MiMo) — one repo, one `make setup`, one `.env` per provider driving all three CLIs.
+> Run Claude Code, OpenCode and pi on Anthropic-compatible LLM backends (DeepSeek · MiniMax · GLM · Kimi · MiMo · OpenRouter · your own llama.cpp) — one repo, one `make setup`, one `.env` per provider driving all three CLIs.
 
 One repo that installs global commands to launch [Claude Code](https://docs.anthropic.com/claude-code), [OpenCode](https://opencode.ai) and the [pi coding agent](https://pi.dev) against Anthropic-compatible backends:
 
@@ -11,16 +11,22 @@ One repo that installs global commands to launch [Claude Code](https://docs.anth
 | GLM (Z.ai) | `claudeglm` | `openglm` | `piglm` | `https://api.z.ai/api/anthropic`     | `glm-5.3` |
 | Kimi (Moonshot) | `claudekimi` | `openkimi` | `pikimi` | `https://api.kimi.com/coding` | `kimi-k3` |
 | MiMo (Xiaomi) | `claudemimo` | `openmimo` | `pimimo` | `https://token-plan-sgp.xiaomimimo.com/anthropic` | `mimo-v2.5-pro` |
+| OpenRouter | `claudeox` | `openox` | `piox` | `https://openrouter.ai/api` | `stealth/ox-alpha` |
+| Local (llama.cpp) | `claudelocal` | `openlocal` | `pilocal` | `http://127.0.0.1:11301` | whatever your `llama-server` serves |
 
 Kimi and MiMo run that flagship as its 1M-context variant under Claude Code (`kimi-k3[1m]`); OpenCode and pi take the plain id.
 
-Each provider exposes a native Anthropic-compatible endpoint, so there is no proxy or translation layer — just environment variables. The `open*` and `pi*` commands run their CLI against the very same endpoint and token: all three launchers of a provider share the single `providers/<name>/.env`.
+Each provider exposes a native Anthropic-compatible endpoint, so there is no proxy or translation layer — just environment variables. That holds for the local one too: `llama-server` answers `/v1/messages` in the Anthropic shape. The `open*` and `pi*` commands run their CLI against the very same endpoint and token: all three launchers of a provider share the single `providers/<name>/.env`.
 
 > **Note:** every command follows one naming scheme — `claude<name>` for Claude Code, `open<name>` for OpenCode, `pi<name>` for pi. Bare provider names are deliberately avoided: `kimi` is Moonshot's official Kimi CLI, `minimax` is the official MiniMax Code desktop app command, and `mmx` is an unrelated bun-installed tool. MiniMax uses the short name `mmx` (`claudemmx` / `openmmx` / `pimmx`).
 
 > **Note:** Kimi has two endpoints. The default `https://api.kimi.com/coding` is for the **coding subscription plan**. For **pay-as-you-go (metered) billing**, switch `BASE_URL` to `https://api.moonshot.ai/anthropic` in `providers/kimi/.env`.
 
+> **Note:** Local is not a hosted service — it points at a `llama-server` on your own machine, which serves the Anthropic shape on `/v1/messages`. There is no account and no key, so `API_TOKEN` is a placeholder the CLIs merely require to be non-empty. Set `MODEL` to whatever `/v1/models` reports and keep `CONTEXT_WINDOW` at or below the server's `--ctx-size`.
+
 > **Note:** MiMo has three endpoints. The default `https://token-plan-sgp.xiaomimimo.com/anthropic` is the **global Token Plan subscription** endpoint (tokens start with `tp-`). China accounts use `https://token-plan-cn.xiaomimimo.com/anthropic` instead, and **pay-as-you-go (metered) billing** (keys start with `sk-`) uses `https://api.xiaomimimo.com/anthropic` — switch `BASE_URL` in `providers/mimo/.env` accordingly. Note the docs mostly mention only the CN host; the `-sgp` host is what actually accepts global-plan tokens.
+
+> **Note:** OpenRouter is a router rather than a model vendor, and `BASE_URL` is its Anthropic skin — the same `/v1/messages` route, with thinking blocks, tool use and streaming passed through untouched. `MODEL` is therefore any OpenRouter id, vendor prefix and all; the three CLIs split their `<provider>/<model>` reference on the first slash only, so `stealth/ox-alpha` survives intact. The preset is [Ox Alpha](https://openrouter.ai/stealth/ox-alpha): free, 1M context, and run by a provider that stays anonymous for the preview and retains prompts and completions. Stealth models are withdrawn without notice — point `MODEL` in `providers/ox/.env` at another id when it goes.
 
 ## Layout
 
@@ -98,18 +104,21 @@ claudemmx         # Claude Code on MiniMax
 claudeglm         # Claude Code on GLM (Z.ai)
 claudekimi        # Claude Code on Kimi (Moonshot)
 claudemimo        # Claude Code on MiMo (Xiaomi)
+claudeox          # Claude Code on OpenRouter (Ox Alpha)
 
 opendeepseek      # OpenCode on DeepSeek
 openmmx           # OpenCode on MiniMax
 openglm           # OpenCode on GLM (Z.ai)
 openkimi          # OpenCode on Kimi (Moonshot)
 openmimo          # OpenCode on MiMo (Xiaomi)
+openox            # OpenCode on OpenRouter (Ox Alpha)
 
 pideepseek        # pi on DeepSeek
 pimmx             # pi on MiniMax
 piglm             # pi on GLM (Z.ai)
 pikimi            # pi on Kimi (Moonshot)
 pimimo            # pi on MiMo (Xiaomi)
+piox              # pi on OpenRouter (Ox Alpha)
 ```
 
 Arguments pass through to `claude` / `opencode` / `pi` verbatim:
@@ -316,5 +325,6 @@ original as `.env.bak`.
 - [Z.ai / GLM Claude Code docs](https://docs.z.ai/devpack/tool/claude)
 - [Kimi / Moonshot AI Platform](https://platform.moonshot.ai/docs)
 - [Xiaomi MiMo: Claude Code Integration (Token Plan)](https://mimo.mi.com/docs/en-US/tokenplan/integration/claudecode)
+- [OpenRouter: Claude Code Integration](https://openrouter.ai/docs/cookbook/coding-agents/claude-code-integration) / [Ox Alpha](https://openrouter.ai/stealth/ox-alpha)
 - [OpenCode: Config](https://opencode.ai/docs/config/) / [Providers](https://opencode.ai/docs/providers/)
 - [pi: Custom models](https://pi.dev/docs/latest/models) / [Providers](https://pi.dev/docs/latest/providers) / [DeepSeek's pi integration guide](https://api-docs.deepseek.com/quick_start/agent_integrations/pi_mono/)
