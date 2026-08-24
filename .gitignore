@@ -2,9 +2,6 @@
 providers/*/.env
 providers/*/.env.bak
 
-# Generated OpenCode config (rebuilt from .env on every open* launch)
-providers/*/.opencode.json
-
 # Generated pi agent dir: models.json plus symlinks to ~/.pi/agent
 # (rebuilt from .env on every pi* launch)
 providers/*/.pi-agent/
