@@ -204,7 +204,7 @@ opencode_provider_json() { # <provider name> <apiKey reference> — one provider
   cat <<EOF
     "$name-anthropic": {
       "npm": "@ai-sdk/anthropic",
-      "name": "$name (Anthropic-compatible)",
+      "name": "$name",
       "options": {
         "baseURL": "$CFG_BASE_URL/v1",
         "apiKey": "$api_key"
