@@ -4,10 +4,10 @@
 # `opencode` reads the generated ~/.config/opencode/opencode.json, and /models
 # lists every provider.
 #
-# .env stays the single source of truth: the config references each token as
-# {file:...} pointing at a token file this script writes next to it (chmod
-# 600), so the config itself carries no secrets. Re-run after editing any
-# .env — the token copies are replaced.
+# .env stays the single source of truth: the config references each token,
+# and each HEADERS value, as {file:...} pointing at a file this script writes
+# next to it (chmod 600), so the config itself carries no secrets. Re-run
+# after editing any .env — the copies are replaced.
 
 set -euo pipefail
 
@@ -29,34 +29,21 @@ fi
 # Provider the session's model / small_model default to; the first configured
 # provider when unset.
 default_provider="${OPENCODE_DEFAULT_PROVIDER:-}"
-first_provider=
 
+# Every provider with a token, endpoint and model. Each is resolved in a
+# subshell: load_settings exports the whole .env, and providers must not leak
+# into each other.
 providers=()
-tokens=()
-entries=()
 for dir in "$PROVIDERS_DIR"/*/; do
   provider=$(basename "$dir")
   env_file="$dir.env"
   [ -f "$env_file" ] || continue
-  # Each provider is resolved in a subshell: load_settings exports the whole
-  # .env, and providers must not leak into each other. The token rides on the
-  # first line of the record; the JSON block follows.
-  entry=$(
-    load_settings "$env_file"
-    [ -n "$CFG_TOKEN" ] && [ -n "$CFG_BASE_URL" ] && [ -n "$CFG_MODEL" ] || exit 0
-    opencode_resolve
-    printf '%s\n' "$CFG_TOKEN"
-    opencode_provider_json "$provider" "{file:$TOKENS_DIR/$provider.token}"
-  )
-  if [ -n "$entry" ]; then
+  if ( load_settings "$env_file"; [ -n "$CFG_TOKEN" ] && [ -n "$CFG_BASE_URL" ] && [ -n "$CFG_MODEL" ] ); then
     providers+=("$provider")
-    tokens+=("${entry%%$'\n'*}")
-    entries+=("${entry#*$'\n'}")
-    [ -n "$first_provider" ] || first_provider=$provider
   fi
 done
 
-if [ "${#entries[@]}" -eq 0 ]; then
+if [ "${#providers[@]}" -eq 0 ]; then
   echo "opencode-global: no provider has a token yet — run 'make setup' first." >&2
   exit 1
 fi
@@ -71,7 +58,7 @@ if [ -n "$default_provider" ]; then
     exit 1
   fi
 else
-  default_provider=$first_provider
+  default_provider=${providers[0]}
 fi
 
 default_models=$(
@@ -83,13 +70,30 @@ model="$default_provider-anthropic/$(head -1 <<<"$default_models")"
 small_model="$default_provider-anthropic/$(tail -n +2 <<<"$default_models")"
 
 # The tokens dir is fully managed here: wipe it, then write the current set so
-# providers whose .env lost their token leave no stale secret behind.
+# providers whose .env lost their token leave no stale secret behind. HEADERS
+# values are stored the same way, one file per header.
 mkdir -p "$TOKENS_DIR"
 chmod 700 "$TOKENS_DIR"
-rm -f "$TOKENS_DIR"/*.token
-for i in "${!providers[@]}"; do
-  printf '%s' "${tokens[$i]}" > "$TOKENS_DIR/${providers[$i]}.token"
-  chmod 600 "$TOKENS_DIR/${providers[$i]}.token"
+rm -f "$TOKENS_DIR"/*.token "$TOKENS_DIR"/*.header
+
+opencode_header_ref() { # <name> -> {file:...} reference for the provider in scope
+  printf '{file:%s/%s.%s.header}' "$TOKENS_DIR" "$provider" "$1"
+}
+
+entries=()
+for provider in "${providers[@]}"; do
+  entries+=("$(
+    load_settings "$PROVIDERS_DIR/$provider/.env"
+    opencode_resolve
+    printf '%s' "$CFG_TOKEN" > "$TOKENS_DIR/$provider.token"
+    chmod 600 "$TOKENS_DIR/$provider.token"
+    while IFS= read -r name; do
+      [ -n "$name" ] || continue
+      printf '%s' "$(header_value "$name")" > "$TOKENS_DIR/$provider.$name.header"
+      chmod 600 "$TOKENS_DIR/$provider.$name.header"
+    done < <(header_names)
+    opencode_provider_json "$provider" "{file:$TOKENS_DIR/$provider.token}" opencode_header_ref
+  )")
 done
 
 mkdir -p "$CONFIG_DIR"

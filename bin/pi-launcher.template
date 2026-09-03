@@ -62,13 +62,21 @@ if [[ -d "$GLOBAL_AGENT_DIR" ]]; then
 fi
 shopt -u nullglob dotglob
 
+# HEADERS travel the same way as the token: each value is exported under
+# its own variable, and models.json names the variable.
+pi_header_ref() { printf '${%s}' "$(header_env_name "$1")"; }
+while IFS= read -r name; do
+  [[ -n "$name" ]] || continue
+  export "$(header_env_name "$name")=$(header_value "$name")"
+done < <(header_names)
+
 # Regenerated on every launch so .env stays the single source of truth.
-# Contains no secrets: "${ANTHROPIC_AUTH_TOKEN}" is an environment variable
-# reference pi interpolates at request time, not the key itself.
+# Contains no secrets: "${ANTHROPIC_AUTH_TOKEN}" and the header variables
+# are environment variable references pi interpolates at request time.
 {
   echo '{'
   echo '  "providers": {'
-  pi_provider_json "$PROVIDER_ID" '${ANTHROPIC_AUTH_TOKEN}'
+  pi_provider_json "$PROVIDER_ID" '${ANTHROPIC_AUTH_TOKEN}' pi_header_ref
   echo '  }'
   echo '}'
 } > "$AGENT_DIR/models.json"

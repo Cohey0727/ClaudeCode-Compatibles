@@ -31,6 +31,11 @@ require_settings "$SELF" "$ENV_FILE"
 export ANTHROPIC_AUTH_TOKEN="$CFG_TOKEN"
 export ANTHROPIC_BASE_URL="$CFG_BASE_URL"
 
+# HEADERS ("Name: Value" lines) is exactly what ANTHROPIC_CUSTOM_HEADERS takes.
+if [[ -n "${ANTHROPIC_CUSTOM_HEADERS:-$CFG_HEADERS}" ]]; then
+  export ANTHROPIC_CUSTOM_HEADERS="${ANTHROPIC_CUSTOM_HEADERS:-$CFG_HEADERS}"
+fi
+
 # CLAUDE_MODEL_SUFFIX appends a Claude Code-only marker such as "[1m]" to
 # every model slot. A model id that already carries one is left alone.
 if [[ -n "${CLAUDE_MODEL_SUFFIX:-}" ]]; then

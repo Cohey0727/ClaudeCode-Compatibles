@@ -77,11 +77,11 @@ unset_provider_settings() { # every name the .env schema defines, generic settin
                             # every provider resolves to the outermost one.
   unset NAME API_TOKEN BASE_URL MODEL SMALL_MODEL ARGS
   unset CONTEXT_WINDOW MAX_TOKENS SMALL_CONTEXT_WINDOW SMALL_MAX_TOKENS
-  unset REASONING INPUT
+  unset REASONING INPUT HEADERS
   unset COMMAND CLAUDE_ARGS PI_ARGS
   unset PI_COMMAND CLAUDE_MODEL_SUFFIX
   unset OPENCODE_MODEL OPENCODE_SMALL_MODEL PI_MODEL PI_SMALL_MODEL
-  unset ANTHROPIC_AUTH_TOKEN ANTHROPIC_BASE_URL ANTHROPIC_MODEL
+  unset ANTHROPIC_AUTH_TOKEN ANTHROPIC_BASE_URL ANTHROPIC_CUSTOM_HEADERS ANTHROPIC_MODEL
   unset ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL
   unset ANTHROPIC_DEFAULT_HAIKU_MODEL ANTHROPIC_DEFAULT_FABLE_MODEL
   unset CLAUDE_CODE_SUBAGENT_MODEL CLAUDE_CODE_AUTO_COMPACT_WINDOW
@@ -111,6 +111,48 @@ load_settings() { # <env file> — export it verbatim, then resolve CFG_* from i
   CFG_SMALL_MAX_TOKENS=$(pick SMALL_MAX_TOKENS MAX_TOKENS)
   CFG_REASONING="${REASONING:-true}"
   CFG_INPUT="${INPUT:-text}"
+  CFG_HEADERS="${HEADERS:-}"
+}
+
+# HEADERS holds extra request headers as "Name: Value" lines — the format
+# Claude Code's ANTHROPIC_CUSTOM_HEADERS takes. OpenCode and pi get the same
+# pairs as a JSON "headers" object whose values are references (an
+# environment variable, a file, a command), never the values themselves.
+header_names() { # -> one header name per line
+  local line
+  while IFS= read -r line; do
+    line="${line#"${line%%[![:space:]]*}"}"
+    [[ "$line" == *:* ]] || continue
+    printf '%s\n' "${line%%:*}"
+  done <<<"$CFG_HEADERS"
+}
+
+header_value() { # <name> -> its value, surrounding whitespace dropped
+  local line
+  while IFS= read -r line; do
+    line="${line#"${line%%[![:space:]]*}"}"
+    [ "${line%%:*}" = "$1" ] || continue
+    line="${line#*:}"
+    line="${line#"${line%%[![:space:]]*}"}"
+    printf '%s' "${line%"${line##*[![:space:]]}"}"
+    return 0
+  done <<<"$CFG_HEADERS"
+}
+
+header_env_name() { # <name> -> the environment variable a launcher exports it as
+  printf 'PROVIDER_HEADER_%s' "$(printf '%s' "$1" | tr -c 'A-Za-z0-9' '_' | tr 'a-z' 'A-Z')"
+}
+
+headers_json() { # <ref fn> -> `"Name": "<ref>"` members, comma-separated; empty
+                 # when HEADERS is. <ref fn> maps a header name to the reference
+                 # written in place of its value.
+  local name out=''
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    out="$out${out:+,
+}          \"$name\": \"$("$1" "$name")\""
+  done < <(header_names)
+  printf '%s' "$out"
 }
 
 require_settings() { # <launcher name> <env file> — fail fast on missing basics
@@ -150,19 +192,27 @@ pi_resolve() { # after load_settings: pi's view of the settings, overrides appli
   esac
 }
 
-pi_provider_json() { # <provider id> <apiKey reference> — one models.json provider block
-  local id=$1 api_key=$2 models
+pi_provider_json() { # <provider id> <apiKey reference> [<header ref fn>] — one
+                     # models.json provider block; HEADERS are included when a
+                     # reference function is given (see headers_json)
+  local id=$1 api_key=$2 models headers=''
   models=$(pi_model_json "$PI_CFG_MODEL" "$PI_CFG_CONTEXT_WINDOW" "$PI_CFG_MAX_TOKENS")
   if [ "$PI_CFG_SMALL_MODEL" != "$PI_CFG_MODEL" ]; then
     models="$models,
 $(pi_model_json "$PI_CFG_SMALL_MODEL" "$PI_CFG_SMALL_CONTEXT_WINDOW" "$PI_CFG_SMALL_MAX_TOKENS")"
+  fi
+  if [ -n "${3:-}" ] && [ -n "$CFG_HEADERS" ]; then
+    headers="      \"headers\": {
+$(headers_json "$3")
+      },
+"
   fi
   cat <<EOF
     "$id": {
       "baseUrl": "$CFG_BASE_URL",
       "api": "anthropic-messages",
       "apiKey": "$api_key",
-      "models": [
+${headers}      "models": [
 $models
       ]
     }
@@ -188,18 +238,25 @@ opencode_resolve() { # after load_settings: OpenCode's view, overrides applied
   OC_CFG_SMALL_MODEL="${OC_CFG_SMALL_MODEL%\[1m\]}"
 }
 
-opencode_provider_json() { # <provider name> <apiKey reference> — one provider
-                           # block, id "<name>-anthropic". The AI SDK Anthropic
-                           # provider appends "/messages" to its baseURL, while
-                           # BASE_URL is the Claude Code form that gets
-                           # "/v1/messages" appended — so baseURL is BASE_URL
-                           # plus "/v1". The token is only ever referenced
-                           # ({file:...}), never written into the config.
-  local name=$1 api_key=$2 models
+opencode_provider_json() { # <provider name> <apiKey reference> [<header ref fn>]
+                           # — one provider block, id "<name>-anthropic". The AI
+                           # SDK Anthropic provider appends "/messages" to its
+                           # baseURL, while BASE_URL is the Claude Code form
+                           # that gets "/v1/messages" appended — so baseURL is
+                           # BASE_URL plus "/v1". The token and the HEADERS
+                           # values are only ever referenced ({file:...}),
+                           # never written into the config.
+  local name=$1 api_key=$2 models headers=''
   models=$(printf '      "%s": {}' "$OC_CFG_MODEL")
   if [ "$OC_CFG_SMALL_MODEL" != "$OC_CFG_MODEL" ]; then
     models="$models,
       \"$OC_CFG_SMALL_MODEL\": {}"
+  fi
+  if [ -n "${3:-}" ] && [ -n "$CFG_HEADERS" ]; then
+    headers=",
+        \"headers\": {
+$(headers_json "$3")
+        }"
   fi
   cat <<EOF
     "$name-anthropic": {
@@ -207,7 +264,7 @@ opencode_provider_json() { # <provider name> <apiKey reference> — one provider
       "name": "$name",
       "options": {
         "baseURL": "$CFG_BASE_URL/v1",
-        "apiKey": "$api_key"
+        "apiKey": "$api_key"$headers
       },
       "models": {
 $models
@@ -219,7 +276,7 @@ EOF
 strip_metadata() { # drop every launcher-only setting from the exported env
   unset NAME API_TOKEN BASE_URL MODEL SMALL_MODEL ARGS
   unset CONTEXT_WINDOW MAX_TOKENS SMALL_CONTEXT_WINDOW SMALL_MAX_TOKENS
-  unset REASONING INPUT
+  unset REASONING INPUT HEADERS
   unset COMMAND CLAUDE_ARGS CLAUDE_MODEL_SUFFIX
   unset OPENCODE_MODEL OPENCODE_SMALL_MODEL
   unset PI_COMMAND PI_ARGS PI_MODEL PI_SMALL_MODEL
@@ -229,5 +286,5 @@ strip_claude_env() { # Claude Code-only variables, not for opencode / pi
   unset ANTHROPIC_MODEL ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL
   unset ANTHROPIC_DEFAULT_HAIKU_MODEL ANTHROPIC_DEFAULT_FABLE_MODEL
   unset CLAUDE_CODE_SUBAGENT_MODEL CLAUDE_CODE_EFFORT_LEVEL
-  unset CLAUDE_CODE_AUTO_COMPACT_WINDOW ENABLE_TOOL_SEARCH
+  unset CLAUDE_CODE_AUTO_COMPACT_WINDOW ENABLE_TOOL_SEARCH ANTHROPIC_CUSTOM_HEADERS
 }

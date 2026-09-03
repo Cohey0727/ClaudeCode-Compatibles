@@ -13,6 +13,7 @@ One repo that installs `claude<name>` / `pi<name>` launcher commands and generat
 | MiMo (Xiaomi) | `claudemimo` / `pimimo` | `https://token-plan-sgp.xiaomimimo.com/anthropic` | `mimo-v2.5-pro` |
 | OpenRouter | `claudeox` / `piox` | `https://openrouter.ai/api` | `stealth/ox-alpha` |
 | Local (llama.cpp) | `claudelocal` / `pilocal` | `http://127.0.0.1:11301` | whatever your `llama-server` serves |
+| gtr (llama.cpp behind Cloudflare) | `claudegtr` / `pigtr` | `https://gtr-llama.spaghetti-monster.com` | whatever that `llama-server` serves |
 
 OpenCode has no per-provider command: `make setup` writes every provider into OpenCode's global config, so a bare `opencode` gets them all under `/models`.
 
@@ -29,6 +30,8 @@ Each provider exposes a native Anthropic-compatible endpoint, so there is no pro
 > **Note:** MiMo has three endpoints. The default `https://token-plan-sgp.xiaomimimo.com/anthropic` is the **global Token Plan subscription** endpoint (tokens start with `tp-`). China accounts use `https://token-plan-cn.xiaomimimo.com/anthropic` instead, and **pay-as-you-go (metered) billing** (keys start with `sk-`) uses `https://api.xiaomimimo.com/anthropic` — switch `BASE_URL` in `providers/mimo/.env` accordingly. Note the docs mostly mention only the CN host; the `-sgp` host is what actually accepts global-plan tokens.
 
 > **Note:** OpenRouter is a router rather than a model vendor, and `BASE_URL` is its Anthropic skin — the same `/v1/messages` route, with thinking blocks, tool use and streaming passed through untouched. `MODEL` is therefore any OpenRouter id, vendor prefix and all; the three CLIs split their `<provider>/<model>` reference on the first slash only, so `stealth/ox-alpha` survives intact. The preset is [Ox Alpha](https://openrouter.ai/stealth/ox-alpha): free, 1M context, and run by a provider that stays anonymous for the preview and retains prompts and completions. Stealth models are withdrawn without notice — point `MODEL` in `providers/ox/.env` at another id when it goes.
+
+> **Note:** gtr is a `llama-server` on another machine, published through a Cloudflare tunnel and gated by Cloudflare Access. Requests without Access credentials get a 302 to the login page, so `HEADERS` in `providers/gtr/.env` has to carry an Access service token (`CF-Access-Client-Id` / `CF-Access-Client-Secret`) — the comments in the file show both that and the short-lived `cloudflared access token` variant. Like Local, `API_TOKEN` is only a placeholder unless `llama-server` runs with `--api-key`.
 
 ## Layout
 
@@ -109,6 +112,7 @@ claudeglm         # Claude Code on GLM (Z.ai)
 claudekimi        # Claude Code on Kimi (Moonshot)
 claudemimo        # Claude Code on MiMo (Xiaomi)
 claudeox          # Claude Code on OpenRouter (Ox Alpha)
+claudegtr         # Claude Code on gtr (llama.cpp behind Cloudflare)
 
 pideepseek        # pi on DeepSeek
 pimmx             # pi on MiniMax
@@ -116,6 +120,7 @@ piglm             # pi on GLM (Z.ai)
 pikimi            # pi on Kimi (Moonshot)
 pimimo            # pi on MiMo (Xiaomi)
 piox              # pi on OpenRouter (Ox Alpha)
+pigtr             # pi on gtr (llama.cpp behind Cloudflare)
 
 opencode          # OpenCode — every configured provider is in /models
 ```
@@ -204,6 +209,7 @@ ARGS=
 | `CONTEXT_WINDOW`, `MAX_TOKENS` | Model limits. pi writes them into its generated `models.json` (it otherwise assumes 128k / 16k and caps each request at `MAX_TOKENS`/3), and Claude Code takes `CONTEXT_WINDOW` as its auto-compact window |
 | `SMALL_CONTEXT_WINDOW`, `SMALL_MAX_TOKENS` | The same two limits for `SMALL_MODEL` when it is a different size — GLM sets them for `glm-4.7`. Default to the values above |
 | `REASONING`, `INPUT` | Whether the models support extended thinking (`true`/`false`) and what they accept (`text` or `text,image`) |
+| `HEADERS` | Optional extra request headers, one `Name: Value` per line (the format Claude Code's `ANTHROPIC_CUSTOM_HEADERS` takes), sent by all three CLIs — e.g. a Cloudflare Access service token in front of a self-hosted server. The value is a bash string, so a multi-line double-quoted value or a `$(...)` computed at launch both work |
 | `ARGS` | Default CLI options prepended to every launch, for all three CLIs (word-split; your command-line arguments come after them) |
 
 ### Overrides
@@ -223,6 +229,7 @@ above them — uncomment one only when a CLI has to differ from the rest.
 | `PI_MODEL`, `PI_SMALL_MODEL` | `MODEL` / `SMALL_MODEL` for pi | pi |
 | `CLAUDE_MODEL_SUFFIX` | nothing — appends a Claude Code-only marker such as `[1m]` to every Claude Code model slot. Kimi and MiMo use it; OpenCode and pi keep sending plain ids | Claude Code |
 | `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | `CONTEXT_WINDOW` | Claude Code |
+| `ANTHROPIC_CUSTOM_HEADERS` | `HEADERS` | Claude Code |
 
 Any extra `KEY=VALUE` line you add is exported to `claude` as well — that is
 how `CLAUDE_CODE_EFFORT_LEVEL` and `ENABLE_TOOL_SEARCH` are set. Known
@@ -254,7 +261,8 @@ per-provider token file under `~/.config/opencode/claude-compatibles/`
 (chmod 600) written from the `.env` at the same time — `.env` stays the single
 source of truth, but after rotating a token re-run `make setup` (or
 `make opencode-global`) so the copy updates; the re-run also drops token files
-of providers whose token was emptied. OpenCode merges `config.json`,
+of providers whose token was emptied. `HEADERS` values are copied the same
+way, one file per header, and referenced from `options.headers`. OpenCode merges `config.json`,
 `opencode.json` and `opencode.jsonc` from its config directory (later wins)
 and then your project `opencode.json`, so hand-written settings still override
 the generated ones — and a file this repo did not generate is never touched
