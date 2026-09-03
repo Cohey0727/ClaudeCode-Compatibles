@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Register every configured provider in pi's global models.json (`make pi-global`).
+# Register every configured provider in pi's global models.json
+# (`make pi-global`). pi has no launcher in this repo: a bare `pi` reads the
+# generated ~/.pi/agent/models.json, and /model lists every provider.
 #
-# The pi<name> launchers do not need this — they generate their own config.
-# This is for a bare `pi`, which otherwise starts with no models at all.
 # Tokens and HEADERS values stay in providers/<name>/.env: the generated file
-# only holds shell commands that read them back out at request time.
+# only holds shell commands that read them back out at request time, so a
+# rotated token or a computed header needs no re-run.
 
 set -euo pipefail
 

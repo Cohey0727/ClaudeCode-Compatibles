@@ -13,7 +13,7 @@ PROVIDER_LIST := $(notdir $(wildcard $(PROVIDERS_DIR)/*))
 
 # Interactive wizard: checkbox provider picker, per-provider API token
 # prompts (Enter keeps the current token), launcher install, pi package
-# install, PATH checks.
+# install, pi / OpenCode global configs, PATH checks.
 setup:
 	@BIN_DIR="$(BIN_DIR)" "$(ROOT)/bin/setup.sh"
 
@@ -21,11 +21,10 @@ uninstall:
 	@for p in $(PROVIDER_LIST); do \
 		dir="$(PROVIDERS_DIR)/$$p"; \
 		[ -f "$$dir/.env.example" ] || continue; \
-		suffix=$$(. "$(COMMON)"; load_settings "$$dir/.env.example"; printf '%s' "$${NAME:-$$p}"); \
-		for cmd in $$(. "$(COMMON)"; load_settings "$$dir/.env.example"; launcher_names "$$p") "open$$suffix"; do \
+		for cmd in $$(. "$(COMMON)"; load_settings "$$dir/.env.example"; launcher_name "$$p"; printf ' '; stale_launcher_names "$$p"); do \
 			rm -f "$(BIN_DIR)/$$cmd" && echo "  Removed $(BIN_DIR)/$$cmd"; \
 		done; \
-		rm -f "$$dir/.opencode.json"; \
+		rm -rf "$$dir/.opencode.json" "$$dir/.pi-agent"; \
 	done
 	@. "$(COMMON)"; out=$$(pi_global_models_path); \
 		if [ -f "$$out" ] && [ "$$(head -1 "$$out")" = "$$PI_GLOBAL_MARKER" ]; then \
@@ -52,13 +51,13 @@ list:
 	@for p in $(PROVIDER_LIST); do \
 		dir="$(PROVIDERS_DIR)/$$p"; \
 		[ -f "$$dir/.env.example" ] || continue; \
-		cmds=$$(. "$(COMMON)"; load_settings "$$dir/.env.example"; launcher_names "$$p" | sed 's| | / |g'); \
+		cmds=$$(. "$(COMMON)"; load_settings "$$dir/.env.example"; launcher_name "$$p"); \
 		url=$$(. "$(COMMON)"; load_settings "$$dir/.env.example"; printf '%s' "$$CFG_BASE_URL"); \
 		printf '  %-10s -> %-44s %s\n' "$$p" "$$cmds" "$$url"; \
 	done
 
-# Register every provider in pi's global models.json, so a bare `pi` sees them
-# too. The pi<name> launchers do not need this.
+# Re-generate pi's global models.json from the current .env files (there are
+# no pi<name> launchers); `make setup` does this too.
 pi-global:
 	@"$(ROOT)/bin/pi-global-models.sh"
 

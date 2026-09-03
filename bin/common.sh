@@ -62,11 +62,14 @@ pick() { # <var name>... -> value of the first one that is set and non-empty
   done
 }
 
-launcher_names() { # <provider dir name> -> "claude<name> pi<name>"
+launcher_name() { # <provider dir name> -> "claude<name>"
+  printf '%s' "${COMMAND:-claude${NAME:-$1}}"
+}
+
+stale_launcher_names() { # <provider dir name> -> commands earlier versions
+                         # installed for it; setup and uninstall remove them
   local suffix="${NAME:-$1}"
-  printf '%s %s' \
-    "${COMMAND:-claude$suffix}" \
-    "${PI_COMMAND:-pi$suffix}"
+  printf '%s %s' "pi$suffix" "open$suffix"
 }
 
 unset_provider_settings() { # every name the .env schema defines, generic settings and
@@ -78,8 +81,7 @@ unset_provider_settings() { # every name the .env schema defines, generic settin
   unset NAME API_TOKEN BASE_URL MODEL SMALL_MODEL ARGS
   unset CONTEXT_WINDOW MAX_TOKENS SMALL_CONTEXT_WINDOW SMALL_MAX_TOKENS
   unset REASONING INPUT HEADERS
-  unset COMMAND CLAUDE_ARGS PI_ARGS
-  unset PI_COMMAND CLAUDE_MODEL_SUFFIX
+  unset COMMAND CLAUDE_ARGS CLAUDE_MODEL_SUFFIX
   unset OPENCODE_MODEL OPENCODE_SMALL_MODEL PI_MODEL PI_SMALL_MODEL
   unset ANTHROPIC_AUTH_TOKEN ANTHROPIC_BASE_URL ANTHROPIC_CUSTOM_HEADERS ANTHROPIC_MODEL
   unset ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL
@@ -279,12 +281,6 @@ strip_metadata() { # drop every launcher-only setting from the exported env
   unset REASONING INPUT HEADERS
   unset COMMAND CLAUDE_ARGS CLAUDE_MODEL_SUFFIX
   unset OPENCODE_MODEL OPENCODE_SMALL_MODEL
-  unset PI_COMMAND PI_ARGS PI_MODEL PI_SMALL_MODEL
+  unset PI_MODEL PI_SMALL_MODEL
 }
 
-strip_claude_env() { # Claude Code-only variables, not for opencode / pi
-  unset ANTHROPIC_MODEL ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL
-  unset ANTHROPIC_DEFAULT_HAIKU_MODEL ANTHROPIC_DEFAULT_FABLE_MODEL
-  unset CLAUDE_CODE_SUBAGENT_MODEL CLAUDE_CODE_EFFORT_LEVEL
-  unset CLAUDE_CODE_AUTO_COMPACT_WINDOW ENABLE_TOOL_SEARCH ANTHROPIC_CUSTOM_HEADERS
-}

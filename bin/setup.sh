@@ -6,11 +6,11 @@
 #
 # At a token prompt, pressing Enter with no input keeps whatever token is
 # already in that provider's .env. Old-format .env files are migrated first,
-# and settings added to .env.example since are appended. Then two launcher
-# commands per provider — claude<NAME> and pi<NAME> — are generated into
-# $BIN_DIR (default ~/.local/bin) from the templates in bin/, the pi packages
-# in $PI_PACKAGES are installed into pi's user settings, and every provider
-# with a token is registered in OpenCode's global config.
+# and settings added to .env.example since are appended. Then a claude<NAME>
+# launcher per provider is generated into $BIN_DIR (default ~/.local/bin)
+# from the template in bin/, the pi packages in $PI_PACKAGES are installed
+# into pi's user settings, and every provider with a token is registered in
+# pi's global models.json and OpenCode's global config.
 
 set -euo pipefail
 
@@ -18,7 +18,6 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 PROVIDERS_DIR="$ROOT/providers"
 COMMON="$ROOT/bin/common.sh"
 TEMPLATE="$ROOT/bin/launcher.template"
-PI_TEMPLATE="$ROOT/bin/pi-launcher.template"
 BIN_DIR="${BIN_DIR:-${PREFIX:-$HOME/.local}/bin}"
 
 # shellcheck disable=SC1090
@@ -56,10 +55,16 @@ discover_providers() {
   return 0
 }
 
-provider_launchers() { # <provider> -> "claude<x> pi<x>"
+provider_launcher() { # <provider> -> "claude<x>"
   local file="$PROVIDERS_DIR/$1/.env"
   [ -f "$file" ] || file="$PROVIDERS_DIR/$1/.env.example"
-  ( load_settings "$file"; launcher_names "$1" )
+  ( load_settings "$file"; launcher_name "$1" )
+}
+
+provider_stale_launchers() { # <provider> -> commands earlier versions installed
+  local file="$PROVIDERS_DIR/$1/.env"
+  [ -f "$file" ] || file="$PROVIDERS_DIR/$1/.env.example"
+  ( load_settings "$file"; stale_launcher_names "$1" )
 }
 
 api_key_url() { # <provider> -> signup URL from the .env.example comment, if any
@@ -167,9 +172,7 @@ cleanup_tty() {
 draw_item() { # <index>
   local i=$1 mark cmd tok
   if [ "${CHECKED[$i]}" = 1 ]; then mark="${GRN}x${RST}"; else mark=' '; fi
-  local -a names
-  read -r -a names <<< "$(provider_launchers "${ITEMS[$i]}")"
-  cmd="${names[0]} / ${names[1]}"
+  cmd=$(provider_launcher "${ITEMS[$i]}")
   tok=$(current_token "$PROVIDERS_DIR/${ITEMS[$i]}/.env")
   printf '\033[2K\r'
   if [ "$i" = "$CURSOR" ]; then
@@ -293,16 +296,22 @@ install_one() { # <provider> <command> <template>
   fi
 }
 
-install_launcher() { # <provider> — one launcher per CLI
-  local p=$1
-  local -a names
-  read -r -a names <<< "$(provider_launchers "$p")"
-  install_one "$p" "${names[0]}" "$TEMPLATE"
-  install_one "$p" "${names[1]}" "$PI_TEMPLATE"
+install_launcher() { # <provider> — the claude<NAME> command. Commands earlier
+                     # versions generated for the provider (recognised by the
+                     # baked-in PROVIDER_DIR) and its .pi-agent dir go away.
+  local p=$1 cmd
+  install_one "$p" "$(provider_launcher "$p")" "$TEMPLATE"
+  for cmd in $(provider_stale_launchers "$p"); do
+    if [ -f "$BIN_DIR/$cmd" ] && grep -q '^PROVIDER_DIR="' "$BIN_DIR/$cmd"; then
+      rm -f "$BIN_DIR/$cmd"
+      printf '  %s• removed %s%s\n' "$DIM" "$BIN_DIR/$cmd" "$RST"
+    fi
+  done
+  rm -rf "$PROVIDERS_DIR/$p/.pi-agent"
 }
 
-# pi resolves packages from its agent directory, which every pi<NAME> launcher
-# mirrors as symlinks — so one user-scope install covers all of them.
+# pi resolves packages from its user settings, so one install covers every
+# provider.
 install_pi_packages() {
   local spec src cmd
   echo
@@ -335,7 +344,7 @@ check_environment() {
     printf '  %s⚠%s %s\n' "$YLW" "$RST" "'opencode' is not on your PATH — the generated global config needs OpenCode (https://opencode.ai)."
   fi
   if ! command -v pi >/dev/null 2>&1; then
-    printf '  %s⚠%s %s\n' "$YLW" "$RST" "'pi' is not on your PATH — the pi* commands need the pi coding agent (https://pi.dev)."
+    printf '  %s⚠%s %s\n' "$YLW" "$RST" "'pi' is not on your PATH — the generated models.json needs the pi coding agent (https://pi.dev)."
   fi
   case ":$PATH:" in
     *":$BIN_DIR:"*) ;;
@@ -400,6 +409,12 @@ main() {
   done
 
   install_pi_packages
+
+  echo
+  printf '%s▸ generating global pi models.json%s\n' "$B$CYN" "$RST"
+  if ! "$ROOT/bin/pi-global-models.sh"; then
+    printf '  %s⚠ skipped — set a token and re-run%s\n' "$YLW" "$RST"
+  fi
 
   echo
   printf '%s▸ generating global OpenCode config%s\n' "$B$CYN" "$RST"

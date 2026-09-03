@@ -2,10 +2,6 @@
 providers/*/.env
 providers/*/.env.bak
 
-# Generated pi agent dir: models.json plus symlinks to ~/.pi/agent
-# (rebuilt from .env on every pi* launch)
-providers/*/.pi-agent/
-
 # Claude Code local state (per-developer, not shared)
 .claude/settings.local.json
 .claude/.credentials.json
