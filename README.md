@@ -89,8 +89,9 @@ To rotate a token, pick up new settings or add a provider later, just re-run `ma
 Coming from an older checkout? `docs/migrations/` has the per-variable
 mapping — see [2026-08-15 — pi 対応と `.env` の共通設定化](docs/migrations/2026-08-15-shared-env-settings.md),
 [2026-08-15 — GLM-5.3](docs/migrations/2026-08-15-glm-5.3.md),
-[2026-08-24 — OpenCode ランチャー廃止とグローバル設定生成](docs/migrations/2026-08-24-opencode-global-config.md)
-and [2026-09-03 — pi ランチャー廃止とグローバル models.json 生成](docs/migrations/2026-09-03-pi-global-models.md).
+[2026-08-24 — OpenCode ランチャー廃止とグローバル設定生成](docs/migrations/2026-08-24-opencode-global-config.md),
+[2026-09-03 — pi ランチャー廃止とグローバル models.json 生成](docs/migrations/2026-09-03-pi-global-models.md)
+and [2026-09-05 — OpenCode の lean エージェント](docs/migrations/2026-09-05-opencode-lean-agent.md).
 
 ### Make targets
 
@@ -230,6 +231,8 @@ above them — uncomment one only when a CLI has to differ from the rest.
 | `ANTHROPIC_BASE_URL` | `BASE_URL` | all three |
 | `ANTHROPIC_MODEL`, `ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU,FABLE}_MODEL`, `CLAUDE_CODE_SUBAGENT_MODEL` | the model slots Claude Code fills from `MODEL` / `SMALL_MODEL` | Claude Code |
 | `OPENCODE_MODEL`, `OPENCODE_SMALL_MODEL` | `MODEL` / `SMALL_MODEL` for OpenCode | the OpenCode global config |
+| `OPENCODE_CONTEXT_WINDOW`, `OPENCODE_MAX_TOKENS` | `CONTEXT_WINDOW` / `MAX_TOKENS` for OpenCode. These are the window a session may grow into before OpenCode compacts it, so a backend too slow to prefill its full context sets them lower — `gtr` does | the OpenCode global config |
+| `OPENCODE_LEAN` | nothing — `true` gives the provider [a lean agent of its own](#lean-agents) | the OpenCode global config |
 | `PI_MODEL`, `PI_SMALL_MODEL` | `MODEL` / `SMALL_MODEL` for pi | the pi global models.json |
 | `CLAUDE_MODEL_SUFFIX` | nothing — appends a Claude Code-only marker such as `[1m]` to every Claude Code model slot. Kimi and MiMo use it; OpenCode and pi keep sending plain ids | Claude Code |
 | `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | `CONTEXT_WINDOW` | Claude Code |
@@ -272,6 +275,32 @@ the generated ones — and a file this repo did not generate is never touched
 (first-line marker). The `local` provider shows up whenever its placeholder
 token is set; picking it while `llama-server` is down fails that one request
 and nothing else.
+
+### Lean agents
+
+OpenCode's stock request carries a system prompt of its own, every AGENTS.md
+and `~/.claude/CLAUDE.md` it can find, a list of every skill on the machine and
+ten tool definitions — around 10k tokens before the conversation starts. A
+hosted provider prefills that in the time it takes to read this sentence; a
+single self-hosted GPU does not.
+
+`OPENCODE_LEAN=true` in a provider's `.env` gives it an agent named after the
+provider and pinned to its model, which cuts that fixed part to around 4k:
+
+- `prompt` points at a copy of `bin/opencode-lean-prompt.md`, which *replaces*
+  OpenCode's model-specific base prompt rather than adding to it
+- `skill` is denied, so the whole `<available_skills>` list is dropped
+- `task`, `todowrite` and `webfetch` are denied too, leaving `bash`, `edit`,
+  `read`, `write`, `grep` and `glob`
+
+A denied tool is dropped from the request, not merely refused — but only names
+OpenCode actually registers may be listed. Denying one it does not know takes
+`edit` and `write` down with it, so `OPENCODE_LEAN_DISABLED_TOOLS` in
+`bin/common.sh` holds exactly the four above.
+
+`opencode` starts on the lean agent when its provider is also
+[the default one](#default-provider); Tab switches to the stock `build` agent,
+and the AGENTS.md files still apply to both.
 
 `pi` gets no launcher either. `make setup` (and `make pi-global`) write every
 provider that has a token into `~/.pi/agent/models.json`: a `<name>` provider

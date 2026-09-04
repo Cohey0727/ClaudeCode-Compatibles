@@ -8,11 +8,17 @@
 # and each HEADERS value, as {file:...} pointing at a file this script writes
 # next to it (chmod 600), so the config itself carries no secrets. Re-run
 # after editing any .env — the copies are replaced.
+#
+# A provider with OPENCODE_LEAN=true also gets an agent of its own, pinned to
+# its model, that replaces OpenCode's stock system prompt with a short one and
+# drops the tools a small self-hosted model has no use for. The session starts
+# on that agent when the provider is also the default one.
 
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 PROVIDERS_DIR="$ROOT/providers"
+LEAN_PROMPT="$ROOT/bin/opencode-lean-prompt.md"
 # shellcheck disable=SC1090
 source "$ROOT/bin/common.sh"
 
@@ -60,13 +66,18 @@ small_model="$default_provider-anthropic/$(tail -n +2 <<<"$default_models")"
 # values are stored the same way, one file per header.
 mkdir -p "$TOKENS_DIR"
 chmod 700 "$TOKENS_DIR"
-rm -f "$TOKENS_DIR"/*.token "$TOKENS_DIR"/*.header
+rm -f "$TOKENS_DIR"/*.token "$TOKENS_DIR"/*.header "$TOKENS_DIR"/*.prompt.md
 
 opencode_header_ref() { # <name> -> {file:...} reference for the provider in scope
   printf '{file:%s/%s.%s.header}' "$TOKENS_DIR" "$provider" "$1"
 }
 
+lean_provider() { # <provider> — does its .env ask for the lean agent?
+  ( load_settings "$PROVIDERS_DIR/$1/.env"; opencode_resolve; [ "$OC_CFG_LEAN" = true ] )
+}
+
 entries=()
+agents=()
 for provider in "${providers[@]}"; do
   entries+=("$(
     load_settings "$PROVIDERS_DIR/$provider/.env"
@@ -80,7 +91,22 @@ for provider in "${providers[@]}"; do
     done < <(header_names)
     opencode_provider_json "$provider" "{file:$TOKENS_DIR/$provider.token}" opencode_header_ref
   )")
+  if lean_provider "$provider"; then
+    cp "$LEAN_PROMPT" "$TOKENS_DIR/$provider.prompt.md"
+    agents+=("$(
+      load_settings "$PROVIDERS_DIR/$provider/.env"
+      opencode_resolve
+      opencode_agent_json "$provider" "$TOKENS_DIR/$provider.prompt.md"
+    )")
+  fi
 done
+
+# The session starts on the default provider's model, so it may as well start
+# on that provider's lean agent when it has one.
+default_agent=''
+if lean_provider "$default_provider"; then
+  default_agent="$default_provider"
+fi
 
 mkdir -p "$CONFIG_DIR"
 {
@@ -93,9 +119,20 @@ mkdir -p "$CONFIG_DIR"
     if [ "$i" -lt $(( ${#entries[@]} - 1 )) ]; then echo ','; fi
   done
   echo '  },'
+  if [ "${#agents[@]}" -gt 0 ]; then
+    echo '  "agent": {'
+    for i in "${!agents[@]}"; do
+      printf '%s' "${agents[$i]}"
+      if [ "$i" -lt $(( ${#agents[@]} - 1 )) ]; then echo ','; fi
+    done
+    echo '  },'
+  fi
+  if [ -n "$default_agent" ]; then
+    printf '  "default_agent": "%s",\n' "$default_agent"
+  fi
   printf '  "model": "%s",\n' "$model"
   printf '  "small_model": "%s"\n' "$small_model"
   echo '}'
 } > "$OUT"
 
-echo "  Wrote $OUT (${#entries[@]} providers, default $model)"
+echo "  Wrote $OUT (${#entries[@]} providers, ${#agents[@]} lean agents, default $model)"

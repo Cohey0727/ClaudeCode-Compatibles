@@ -97,6 +97,7 @@ unset_provider_settings() { # every name the .env schema defines, generic settin
   unset REASONING INPUT HEADERS
   unset COMMAND CLAUDE_ARGS CLAUDE_MODEL_SUFFIX
   unset OPENCODE_MODEL OPENCODE_SMALL_MODEL PI_MODEL PI_SMALL_MODEL
+  unset OPENCODE_LEAN OPENCODE_CONTEXT_WINDOW OPENCODE_MAX_TOKENS
   unset ANTHROPIC_AUTH_TOKEN ANTHROPIC_BASE_URL ANTHROPIC_CUSTOM_HEADERS ANTHROPIC_MODEL
   unset ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL
   unset ANTHROPIC_DEFAULT_HAIKU_MODEL ANTHROPIC_DEFAULT_FABLE_MODEL
@@ -252,6 +253,48 @@ opencode_resolve() { # after load_settings: OpenCode's view, overrides applied
   OC_CFG_MODEL="${OC_CFG_MODEL%\[1m\]}"
   OC_CFG_SMALL_MODEL="${OPENCODE_SMALL_MODEL:-$CFG_SMALL_MODEL_PLAIN}"
   OC_CFG_SMALL_MODEL="${OC_CFG_SMALL_MODEL%\[1m\]}"
+
+  # OpenCode compacts a session once it fills the context, so this is the
+  # window it may grow into, not the server's capacity. A backend slow enough
+  # to make a full window unusable sets OPENCODE_CONTEXT_WINDOW below it.
+  OC_CFG_CONTEXT_WINDOW=$(pick OPENCODE_CONTEXT_WINDOW CFG_CONTEXT_WINDOW)
+  OC_CFG_CONTEXT_WINDOW="${OC_CFG_CONTEXT_WINDOW:-200000}"
+  OC_CFG_MAX_TOKENS=$(pick OPENCODE_MAX_TOKENS CFG_MAX_TOKENS)
+  OC_CFG_MAX_TOKENS="${OC_CFG_MAX_TOKENS:-32768}"
+  OC_CFG_SMALL_CONTEXT_WINDOW=$(pick OPENCODE_CONTEXT_WINDOW CFG_SMALL_CONTEXT_WINDOW)
+  OC_CFG_SMALL_CONTEXT_WINDOW="${OC_CFG_SMALL_CONTEXT_WINDOW:-$OC_CFG_CONTEXT_WINDOW}"
+  OC_CFG_SMALL_MAX_TOKENS=$(pick OPENCODE_MAX_TOKENS CFG_SMALL_MAX_TOKENS)
+  OC_CFG_SMALL_MAX_TOKENS="${OC_CFG_SMALL_MAX_TOKENS:-$OC_CFG_MAX_TOKENS}"
+
+  if [ "${OPENCODE_LEAN:-}" = "true" ]; then OC_CFG_LEAN=true; else OC_CFG_LEAN=false; fi
+}
+
+opencode_model_json() { # <model id> <context window> <max tokens>
+  printf '        "%s": { "limit": { "context": %s, "output": %s } }' "$1" "$2" "$3"
+}
+
+# Tools a lean agent drops. Only names OpenCode actually registers may appear
+# here: denying a tool it does not know takes edit and write down with it.
+OPENCODE_LEAN_DISABLED_TOOLS="skill task todowrite webfetch"
+
+opencode_agent_json() { # <provider name> <prompt file> — the lean agent for a
+                        # provider whose server is too slow to prefill the stock
+                        # request. "prompt" replaces the model-specific base
+                        # prompt outright, and the denied tools are dropped from
+                        # the request rather than merely refused.
+  local name=$1 prompt=$2 tools='' t
+  for t in $OPENCODE_LEAN_DISABLED_TOOLS; do
+    tools="$tools${tools:+, }\"$t\": false"
+  done
+  cat <<EOF
+    "$name": {
+      "description": "$name with a short prompt and core tools only",
+      "mode": "primary",
+      "model": "$name-anthropic/$OC_CFG_MODEL",
+      "prompt": "{file:$prompt}",
+      "tools": { $tools }
+    }
+EOF
 }
 
 opencode_provider_json() { # <provider name> <apiKey reference> [<header ref fn>]
@@ -263,10 +306,10 @@ opencode_provider_json() { # <provider name> <apiKey reference> [<header ref fn>
                            # values are only ever referenced ({file:...}),
                            # never written into the config.
   local name=$1 api_key=$2 models headers=''
-  models=$(printf '      "%s": {}' "$OC_CFG_MODEL")
+  models=$(opencode_model_json "$OC_CFG_MODEL" "$OC_CFG_CONTEXT_WINDOW" "$OC_CFG_MAX_TOKENS")
   if [ "$OC_CFG_SMALL_MODEL" != "$OC_CFG_MODEL" ]; then
     models="$models,
-      \"$OC_CFG_SMALL_MODEL\": {}"
+$(opencode_model_json "$OC_CFG_SMALL_MODEL" "$OC_CFG_SMALL_CONTEXT_WINDOW" "$OC_CFG_SMALL_MAX_TOKENS")"
   fi
   if [ -n "${3:-}" ] && [ -n "$CFG_HEADERS" ]; then
     headers=",
@@ -295,6 +338,7 @@ strip_metadata() { # drop every launcher-only setting from the exported env
   unset REASONING INPUT HEADERS
   unset COMMAND CLAUDE_ARGS CLAUDE_MODEL_SUFFIX
   unset OPENCODE_MODEL OPENCODE_SMALL_MODEL
+  unset OPENCODE_LEAN OPENCODE_CONTEXT_WINDOW OPENCODE_MAX_TOKENS
   unset PI_MODEL PI_SMALL_MODEL
 }
 
