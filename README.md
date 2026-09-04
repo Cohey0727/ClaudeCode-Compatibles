@@ -12,8 +12,8 @@ One repo that installs a `claude<name>` launcher command per provider and genera
 | Kimi (Moonshot) | `claudekimi` | `https://api.kimi.com/coding` | `kimi-k3` |
 | MiMo (Xiaomi) | `claudemimo` | `https://token-plan-sgp.xiaomimimo.com/anthropic` | `mimo-v2.5-pro` |
 | OpenRouter | `claudeox` | `https://openrouter.ai/api` | `stealth/ox-alpha` |
-| Local (llama.cpp) | `claudelocal` | `http://127.0.0.1:11301` | whatever your `llama-server` serves |
-| gtr (llama.cpp behind Cloudflare) | `claudegtr` | `https://gtr-llama.spaghetti-monster.com` | whatever that `llama-server` serves |
+| Local (llama.cpp) | `claudelocal` | `http://127.0.0.1:11301` | `default` |
+| gtr (llama.cpp behind Cloudflare) | `claudegtr` | `https://gtr-llama.spaghetti-monster.com` | `default` |
 
 OpenCode and pi have no per-provider command: `make setup` writes every provider into their global configs, so a bare `opencode` gets them all under `/models` and a bare `pi` under `/model`.
 
@@ -25,7 +25,7 @@ Each provider exposes a native Anthropic-compatible endpoint, so there is no pro
 
 > **Note:** Kimi has two endpoints. The default `https://api.kimi.com/coding` is for the **coding subscription plan**. For **pay-as-you-go (metered) billing**, switch `BASE_URL` to `https://api.moonshot.ai/anthropic` in `providers/kimi/.env`.
 
-> **Note:** Local is not a hosted service — it points at a `llama-server` on your own machine, which serves the Anthropic shape on `/v1/messages`. There is no account and no key, so `API_TOKEN` is a placeholder the CLIs merely require to be non-empty. Set `MODEL` to whatever `/v1/models` reports and keep `CONTEXT_WINDOW` at or below the server's `--ctx-size`.
+> **Note:** Local is not a hosted service — it points at a `llama-server` on your own machine, which serves the Anthropic shape on `/v1/messages`. There is no account and no key, so `API_TOKEN` is a placeholder the CLIs merely require to be non-empty. Both llama.cpp providers use the fixed model id `default`: llama-server answers with whatever it has loaded and ignores the requested name, so swapping the model on the server needs no edit here. Keep `CONTEXT_WINDOW` at or below the server's `--ctx-size`.
 
 > **Note:** MiMo has three endpoints. The default `https://token-plan-sgp.xiaomimimo.com/anthropic` is the **global Token Plan subscription** endpoint (tokens start with `tp-`). China accounts use `https://token-plan-cn.xiaomimimo.com/anthropic` instead, and **pay-as-you-go (metered) billing** (keys start with `sk-`) uses `https://api.xiaomimimo.com/anthropic` — switch `BASE_URL` in `providers/mimo/.env` accordingly. Note the docs mostly mention only the CN host; the `-sgp` host is what actually accepts global-plan tokens.
 
