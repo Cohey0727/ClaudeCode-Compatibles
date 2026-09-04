@@ -81,7 +81,7 @@ One interactive wizard does everything:
 3. Each provider's `.env` is created from `.env.example` if missing (`chmod 600`); an existing `.env` gets any settings that were added to `.env.example` since, appended with their comments and your token untouched
 4. One command per provider is generated in `~/.local/bin` — `claude<NAME>`, with the provider folder path baked in
 5. The pi packages that add [`/loop` and `/goal`](#loops-in-pi) are installed once into pi's user settings (`~/.pi/agent/settings.json`)
-6. Every provider with a token is registered in pi's global `~/.pi/agent/models.json` (the token stays in `.env`, read back by a shell command at request time) and in OpenCode's global config (`~/.config/opencode/opencode.json`); there its token is copied to `~/.config/opencode/claude-compatibles/` (chmod 600) and only referenced from the config
+6. Every provider with a token is registered in pi's global `~/.pi/agent/models.json` (the token stays in `.env`, read back by a shell command at request time) and in OpenCode's global config (`~/.config/opencode/opencode.json`); both start on [the default provider](#default-provider), and in OpenCode's case its token is copied to `~/.config/opencode/claude-compatibles/` (chmod 600) and only referenced from the config
 7. You get a warning if `~/.local/bin`, `claude`, `opencode` or `pi` is missing from your PATH
 
 To rotate a token, pick up new settings or add a provider later, just re-run `make setup`.
@@ -98,7 +98,7 @@ and [2026-09-03 — pi ランチャー廃止とグローバル models.json 生�
 |--------|--------------|
 | `make setup` | The wizard above: tokens, `.env` upkeep, launcher install, pi packages, pi and OpenCode global configs |
 | `make list` | Show every provider's command and endpoint |
-| `make pi-global` | Re-generate pi's global `~/.pi/agent/models.json` from the current `.env` files — run it after changing a model or endpoint |
+| `make pi-global` | Re-generate pi's global `~/.pi/agent/models.json` from the current `.env` files, and set the startup model in `~/.pi/agent/settings.json` — run it after changing a model or endpoint |
 | `make opencode-global` | Re-generate OpenCode's global config from the current `.env` files — run it after editing one |
 | `make uninstall` | Remove the installed launchers (including the `pi<name>` / `open<name>` ones earlier versions installed), the pi packages from `$PI_PACKAGES`, and the global `models.json` / OpenCode config / token files this repo wrote. Provider `.env` files are left alone |
 
@@ -124,12 +124,14 @@ claudeglm --help
 claudedeepseek -p "Review my TypeScript type definitions"
 ```
 
-pi has no `pi<name>` commands. `make setup` (and `make pi-global`) write every provider that has a token into `~/.pi/agent/models.json`, so a bare `pi` has all of them and `/model` switches mid-session — Ctrl+S there saves the pick as the startup default:
+pi has no `pi<name>` commands. `make setup` (and `make pi-global`) write every provider that has a token into `~/.pi/agent/models.json`, so a bare `pi` has all of them and `/model` switches mid-session:
 
 ```bash
-pi                                         # /model lists every provider
+pi                                         # starts on the default provider's model
 pi --model glm/glm-5.3                     # or pick at launch time
 ```
+
+Both generators start you on the same provider, `gtr` by default; see [Default provider](#default-provider). For pi that means `defaultProvider` / `defaultModel` in `~/.pi/agent/settings.json`, the two keys Ctrl+S in `/model` writes — so a re-run replaces a pick you saved there. The rest of that file is left as it is. Writing them needs `python3`; without it the two keys are skipped and pi starts wherever it was.
 
 OpenCode has no `open<name>` commands. `make setup` (and `make opencode-global`) write every provider that has a token into the global `~/.config/opencode/opencode.json`, so a bare `opencode` starts with all of them and `/models` switches mid-session:
 
@@ -138,7 +140,18 @@ opencode                                   # starts on the default provider's mo
 opencode --model glm-anthropic/glm-5.3     # or pick at launch time
 ```
 
-The default `model` / `small_model` come from the first provider with a token (alphabetical); change it with `OPENCODE_DEFAULT_PROVIDER=glm make opencode-global`. Note `small_model`, which serves OpenCode's lightweight internal calls, stays at that default even after you switch the main model via `/models`.
+Note `small_model`, which serves OpenCode's lightweight internal calls, stays at the default even after you switch the main model via `/models`.
+
+### Default provider
+
+pi and OpenCode both start on `DEFAULT_PROVIDER`, which is `gtr`. When that provider has no token the first configured one wins instead, alphabetically, so a fresh checkout still gets a working default. Change it for one run or for good:
+
+```bash
+DEFAULT_PROVIDER=glm make setup            # both configs
+DEFAULT_PROVIDER=glm make opencode-global  # just OpenCode
+```
+
+It sets OpenCode's `model` and `small_model`, and pi's `defaultProvider` / `defaultModel`. Claude Code has no such setting: each `claude<name>` pins its own provider.
 
 ### Loops in pi
 

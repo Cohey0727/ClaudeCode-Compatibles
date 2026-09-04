@@ -26,10 +26,6 @@ if [ -f "$OUT" ] && [ "$(head -1 "$OUT")" != "$OPENCODE_GLOBAL_MARKER" ]; then
   exit 1
 fi
 
-# Provider the session's model / small_model default to; the first configured
-# provider when unset.
-default_provider="${OPENCODE_DEFAULT_PROVIDER:-}"
-
 # Every provider with a token, endpoint and model. Each is resolved in a
 # subshell: load_settings exports the whole .env, and providers must not leak
 # into each other.
@@ -48,18 +44,8 @@ if [ "${#providers[@]}" -eq 0 ]; then
   exit 1
 fi
 
-if [ -n "$default_provider" ]; then
-  found=0
-  for p in "${providers[@]}"; do
-    [ "$p" = "$default_provider" ] && found=1
-  done
-  if [ "$found" != 1 ]; then
-    echo "opencode-global: OPENCODE_DEFAULT_PROVIDER=$default_provider has no token — pick one of: ${providers[*]}" >&2
-    exit 1
-  fi
-else
-  default_provider=${providers[0]}
-fi
+# The provider the session's model / small_model start on.
+default_provider=$(default_provider "${providers[@]}")
 
 default_models=$(
   load_settings "$PROVIDERS_DIR/$default_provider/.env"

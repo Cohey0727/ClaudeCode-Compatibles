@@ -32,6 +32,7 @@ pi_global_header_ref() { # <name> -> command pi runs to read the value from .env
     "$ROOT/bin/common.sh" "$env_file" "$1"
 }
 
+providers=()
 entries=()
 for dir in "$PROVIDERS_DIR"/*/; do
   provider=$(basename "$dir")
@@ -47,13 +48,21 @@ for dir in "$PROVIDERS_DIR"/*/; do
       "!grep -m1 -E '^(API_TOKEN|ANTHROPIC_AUTH_TOKEN)=.+' '$env_file' | cut -d= -f2-" \
       pi_global_header_ref
   )
-  if [ -n "$entry" ]; then entries+=("$entry"); fi
+  if [ -n "$entry" ]; then providers+=("$provider"); entries+=("$entry"); fi
 done
 
 if [ "${#entries[@]}" -eq 0 ]; then
   echo "pi-global: no provider has a token yet — run 'make setup' first." >&2
   exit 1
 fi
+
+# The provider pi starts on, and its main model.
+start_provider=$(default_provider "${providers[@]}")
+start_model=$(
+  load_settings "$PROVIDERS_DIR/$start_provider/.env"
+  pi_resolve
+  printf '%s' "$PI_CFG_MODEL"
+)
 
 mkdir -p "$AGENT_DIR"
 {
@@ -69,3 +78,29 @@ mkdir -p "$AGENT_DIR"
 } > "$OUT"
 
 echo "  Wrote $OUT (${#entries[@]} providers)"
+
+# pi starts on defaultProvider / defaultModel from its own user settings, which
+# also hold the theme and the installed packages — so the file is merged, never
+# rewritten. Ctrl+S in /model writes the same two keys.
+settings="$AGENT_DIR/settings.json"
+if command -v python3 >/dev/null 2>&1; then
+  python3 - "$settings" "$start_provider" "$start_model" <<'EOF'
+import json, os, sys
+path, provider, model = sys.argv[1:4]
+try:
+    with open(path) as f:
+        data = json.load(f)
+except (FileNotFoundError, ValueError):
+    data = {}
+data["defaultProvider"] = provider
+data["defaultModel"] = model
+tmp = path + ".tmp"
+with open(tmp, "w") as f:
+    json.dump(data, f, indent=2)
+    f.write("\n")
+os.replace(tmp, path)
+EOF
+  echo "  Set pi's startup model to $start_provider/$start_model"
+else
+  echo "  pi's startup model needs python3 — pick it with /model then Ctrl+S" >&2
+fi

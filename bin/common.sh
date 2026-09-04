@@ -27,6 +27,20 @@ opencode_tokens_dir() { # -> per-provider token files the generated config refer
   printf '%s/claude-compatibles' "$(opencode_config_dir)"
 }
 
+# Provider the generated pi and OpenCode configs start on. Both fall back to
+# the first configured provider (alphabetical) when this one has no token, so
+# a checkout without it still gets a working default:
+# DEFAULT_PROVIDER=glm make setup
+DEFAULT_PROVIDER="${DEFAULT_PROVIDER:-gtr}"
+
+default_provider() { # <configured provider>... -> the one to start on
+  local p
+  for p in "$@"; do
+    [ "$p" = "$DEFAULT_PROVIDER" ] && { printf '%s' "$p"; return 0; }
+  done
+  printf '%s' "$1"
+}
+
 # pi packages `make setup` installs, as "<source>=<slash command>" pairs. pi
 # keeps its core small and ships no loop of its own: /loop repeats a prompt
 # until a stop condition, /goal drives an objective across turns. Override to
