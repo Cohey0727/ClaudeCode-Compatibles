@@ -128,7 +128,7 @@ pi has no `pi<name>` commands. `make setup` (and `make pi-global`) write every p
 
 ```bash
 pi                                         # /model lists every provider
-pi --model glm-anthropic/glm-5.3           # or pick at launch time
+pi --model glm/glm-5.3                     # or pick at launch time
 ```
 
 OpenCode has no `open<name>` commands. `make setup` (and `make opencode-global`) write every provider that has a token into the global `~/.config/opencode/opencode.json`, so a bare `opencode` starts with all of them and `/models` switches mid-session:
@@ -261,10 +261,13 @@ token is set; picking it while `llama-server` is down fails that one request
 and nothing else.
 
 `pi` gets no launcher either. `make setup` (and `make pi-global`) write every
-provider that has a token into `~/.pi/agent/models.json`: a `<name>-anthropic`
-provider with `api: "anthropic-messages"` and `baseUrl` set to `BASE_URL`
-as-is (pi hands it to the Anthropic SDK, which appends `/v1/messages`), plus
-the two models with their limits. No secret lands in the file: `apiKey` and
+provider that has a token into `~/.pi/agent/models.json`: a `<name>` provider
+with `api: "anthropic-messages"` and `baseUrl` set to `BASE_URL` as-is (pi
+hands it to the Anthropic SDK, which appends `/v1/messages`), plus the two
+models with their limits. The provider id is the plain folder name, which is
+what pi prints next to a model — `default [gtr]`. Where that name also exists
+in pi's own catalog, pi keeps this file's endpoint and token and adds the
+catalog's models to the list, so `/model` may show more than the two. No secret lands in the file: `apiKey` and
 each `HEADERS` value are `!`-prefixed shell commands pi runs at request time
 to read them back out of `providers/<name>/.env`, so a rotated token or a
 `$(...)` computed header is picked up without a re-run. Re-run after changing

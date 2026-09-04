@@ -6,6 +6,10 @@
 # Tokens and HEADERS values stay in providers/<name>/.env: the generated file
 # only holds shell commands that read them back out at request time, so a
 # rotated token or a computed header needs no re-run.
+#
+# A provider is registered under its plain folder name, which is what pi shows
+# next to a model. Where that name also exists in pi's own catalog, pi keeps
+# this file's endpoint and token and adds the catalog's models to the list.
 
 set -euo pipefail
 
@@ -39,7 +43,7 @@ for dir in "$PROVIDERS_DIR"/*/; do
     load_settings "$env_file"
     [ -n "$CFG_TOKEN" ] && [ -n "$CFG_BASE_URL" ] && [ -n "$CFG_MODEL" ] || exit 0
     pi_resolve
-    pi_provider_json "$provider-anthropic" \
+    pi_provider_json "$provider" \
       "!grep -m1 -E '^(API_TOKEN|ANTHROPIC_AUTH_TOKEN)=.+' '$env_file' | cut -d= -f2-" \
       pi_global_header_ref
   )
