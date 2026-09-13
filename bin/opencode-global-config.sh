@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Register every configured provider in OpenCode's global config
-# (`make opencode-global`). OpenCode has no launcher in this repo: a bare
+# (`make opencode-global`). A bare
 # `opencode` reads the generated ~/.config/opencode/opencode.json, and /models
-# lists every provider under one heading, apart from OpenCode's own services.
+# lists every provider under the heading configs.jsonc files it under, beside
+# OpenCode's own services. A provider whose models speak two APIs is written as
+# two providers, one per route.
 #
 # Everything comes from configs.jsonc. The config itself carries no secret: each
 # key and header value is referenced as {file:...} pointing at a copy this
@@ -16,8 +18,7 @@
 # default one.
 #
 # configs.jsonc's top-level opencode.overrides is deep-merged into the config
-# last, key by key, so its keys win over the generated ones. A "${NAME}" in it
-# becomes a {file:...} reference too, to a copy of NAME's .env value.
+# last, key by key, so its keys win over the generated ones.
 
 set -euo pipefail
 
@@ -51,20 +52,20 @@ fi
 # The provider the session's model / small_model start on.
 default_provider=$(default_provider "${providers[@]}")
 
-# The prefix is the id the provider is filed under in OpenCode.
+# The prefix is the id the model's route is filed under in OpenCode.
 default_models=$(
   models_resolve "$default_provider"
-  printf '%s\n%s\n%s' "$(opencode_provider_id)" "$M_DEFAULT_MODEL" "$M_SMALL_MODEL"
+  printf '%s/%s\n%s/%s' "$(route_id "$M_DEFAULT_API")" "$M_DEFAULT_MODEL" \
+    "$(route_id "$M_SMALL_API")" "$M_SMALL_MODEL"
 )
-default_id=$(sed -n 1p <<<"$default_models")
-model="$default_id/$(sed -n 2p <<<"$default_models")"
-small_model="$default_id/$(sed -n 3p <<<"$default_models")"
+model=$(sed -n 1p <<<"$default_models")
+small_model=$(sed -n 2p <<<"$default_models")
 
 # The secrets dir is fully managed here: wipe it, then write the current set so
 # a provider whose key was emptied leaves no stale copy behind.
 mkdir -p "$TOKENS_DIR"
 chmod 700 "$TOKENS_DIR"
-rm -f "$TOKENS_DIR"/*.token "$TOKENS_DIR"/*.header "$TOKENS_DIR"/*.prompt.md "$TOKENS_DIR"/*.var
+rm -f "$TOKENS_DIR"/*.token "$TOKENS_DIR"/*.header "$TOKENS_DIR"/*.prompt.md
 
 opencode_header_ref() { # <name> -> {file:...} reference for the provider in scope
   printf '{file:%s/%s.%s.header}' "$TOKENS_DIR" "$provider" "$1"
@@ -77,7 +78,7 @@ lean_provider() { # <provider> — does configs.jsonc ask for the lean agent?
 entries=()
 agents=()
 for provider in "${providers[@]}"; do
-  entries+=("$(
+  (
     models_resolve "$provider"
     printf '%s' "$M_API_KEY" > "$TOKENS_DIR/$provider.token"
     chmod 600 "$TOKENS_DIR/$provider.token"
@@ -86,8 +87,13 @@ for provider in "${providers[@]}"; do
       printf '%s' "$(header_value "$name")" > "$TOKENS_DIR/$provider.$name.header"
       chmod 600 "$TOKENS_DIR/$provider.$name.header"
     done < <(header_names)
-    opencode_provider_json "{file:$TOKENS_DIR/$provider.token}" opencode_header_ref
-  )")
+  )
+  for api in $(models_resolve "$provider"; printf '%s' "$M_APIS"); do
+    entries+=("$(
+      models_resolve "$provider" "$api"
+      opencode_provider_json "{file:$TOKENS_DIR/$provider.token}" opencode_header_ref
+    )")
+  done
   if lean_provider "$provider"; then
     cp "$LEAN_PROMPT" "$TOKENS_DIR/$provider.prompt.md"
     agents+=("$(
@@ -128,12 +134,7 @@ config=$(
   printf '  "small_model": "%s"\n' "$small_model"
   echo '}'
 )
-while IFS=$'\t' read -r var fallback; do
-  [ -n "$var" ] || continue
-  printf '%s' "$(env_value "$var" "$fallback")" > "$TOKENS_DIR/$var.var"
-  chmod 600 "$TOKENS_DIR/$var.var"
-done < <("$PYTHON" "$MODELS_PY" opencode-vars)
-config=$("$PYTHON" "$MODELS_PY" opencode-merge "$TOKENS_DIR" <<<"$config")
+config=$("$PYTHON" "$MODELS_PY" opencode-merge <<<"$config")
 model=$("$PYTHON" -c 'import json, sys; print(json.load(sys.stdin)["model"])' <<<"$config")
 
 mkdir -p "$CONFIG_DIR"
@@ -143,4 +144,4 @@ printf '%s\n%s\n' "$OPENCODE_GLOBAL_MARKER" "$config" > "$OUT"
 # would win over the merge.
 if generated_here "$CONFIG_DIR/opencode.jsonc"; then rm -f "$CONFIG_DIR/opencode.jsonc"; fi
 
-echo "  Wrote $OUT (${#entries[@]} providers, ${#agents[@]} lean agents, default $model)"
+echo "  Wrote $OUT (${#entries[@]} routes, ${#agents[@]} lean agents, default $model)"

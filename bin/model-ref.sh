@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Print "<the id OpenCode files a provider under>/<model>", so nothing outside
+# Print "<the id OpenCode files a model's route under>/<model>", so nothing outside
 # configs.jsonc has to spell a model id or a provider prefix.
 #
 #   bin/model-ref.sh <provider> [main|small]
@@ -16,9 +16,7 @@ role=${2:-main}
 models_resolve "$provider"
 
 case $role in
-  main) model=$M_DEFAULT_MODEL ;;
-  small) model=$M_SMALL_MODEL ;;
+  main) printf '%s/%s\n' "$(route_id "$M_DEFAULT_API")" "$M_DEFAULT_MODEL" ;;
+  small) printf '%s/%s\n' "$(route_id "$M_SMALL_API")" "$M_SMALL_MODEL" ;;
   *) echo "model-ref.sh: role must be 'main' or 'small', got '$role'" >&2; exit 2 ;;
 esac
-
-printf '%s/%s\n' "$(opencode_provider_id "$provider")" "$model"

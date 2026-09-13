@@ -1,29 +1,23 @@
 #!/usr/bin/env bash
-# Interactive setup for claude-compatibles (`make setup`).
+# Interactive setup (`make setup`).
 #
 #   bin/setup.sh                  checkbox multi-select, then key prompts
 #   bin/setup.sh <provider>...    skip the checkbox, still prompt for keys
 #
 # configs.jsonc lists every provider and refers to its secrets as "${NAME}";
 # the .env beside it holds those values and is the only file with a key in it.
-# The variables opencode.overrides references are prompted for after the
-# providers' keys. At a prompt, pressing Enter with no input keeps whatever is
-# already set.
+# At a prompt, pressing Enter with no input keeps whatever is already set.
 # Keys still sitting in the old providers/<name>/.env files are carried over
-# first. Then a claude<name> launcher per provider is generated into $BIN_DIR
-# (default ~/.local/bin) from the template in bin/, the pi packages in
-# $PI_PACKAGES are installed into pi's user settings, DeepSeek Harness and
-# Command Code are installed with npm unless dsh / cmd is already on the PATH,
-# and every provider whose key resolves is registered in the global config of
-# every agent CLI that has no launcher — one generator each, listed in
-# $GLOBAL_GENERATORS.
+# first. Then the pi packages in $PI_PACKAGES are installed into pi's user
+# settings, DeepSeek Harness and Command Code are installed with npm unless
+# dsh / cmd is already on the PATH, and every provider whose key resolves is
+# registered in the global config of every agent CLI — one generator each,
+# listed in $GLOBAL_GENERATORS.
 
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 COMMON="$ROOT/bin/common.sh"
-TEMPLATE="$ROOT/bin/launcher.template"
-BIN_DIR="${BIN_DIR:-${PREFIX:-$HOME/.local}/bin}"
 
 # shellcheck disable=SC1090
 source "$COMMON"
@@ -34,12 +28,8 @@ source "$ROOT/bin/ui.sh"
 
 discover_providers() { provider_names; }
 
-provider_launcher() { # <provider> -> "claude<x>"
-  provider_command "$1"
-}
-
-provider_stale_launchers() { # <provider> -> commands earlier versions installed
-  provider_stale_commands "$1"
+provider_section() { # <provider> -> the heading configs.jsonc files it under
+  ( models_resolve "$1" && printf '%s' "$M_SECTION" )
 }
 
 api_key_var() { # <provider> -> the .env variable its API_KEY points at
@@ -50,9 +40,12 @@ current_token() { # <provider> -> its resolved key, maybe ""
   ( models_resolve "$1" 2>/dev/null && printf '%s' "$M_API_KEY" )
 }
 
-env_example_url() { # <variable> -> the signup URL commented above it in
-                    # .env.example, if there is one
-  awk -v want="$1=" '
+api_key_url() { # <provider> -> the signup URL commented above its variable in
+                # .env.example, if there is one
+  local var
+  var=$(api_key_var "$1")
+  [ -n "$var" ] || return 0
+  awk -v want="$var=" '
     /^#/ { if (match($0, /https?:\/\/[^ ]+/)) url = substr($0, RSTART, RLENGTH); next }
     index($0, want) == 1 { print url; exit }
     { url = "" }
@@ -171,9 +164,9 @@ cleanup_tty() {
 }
 
 draw_item() { # <index>
-  local i=$1 mark cmd tok
+  local i=$1 mark section tok
   if [ "${CHECKED[$i]}" = 1 ]; then mark="${GRN}x${RST}"; else mark=' '; fi
-  cmd=$(provider_launcher "${ITEMS[$i]}")
+  section=$(provider_section "${ITEMS[$i]}")
   tok=$(current_token "${ITEMS[$i]}")
   printf '\033[2K\r'
   if [ "$i" = "$CURSOR" ]; then
@@ -182,9 +175,9 @@ draw_item() { # <index>
     printf '  [%s] %s%-12s%s' "$mark" "$B" "${ITEMS[$i]}" "$RST"
   fi
   if [ -n "$tok" ]; then
-    printf '  %s→ %-44s%s %skey: set%s\n' "$DIM" "$cmd" "$RST" "$GRN" "$RST"
+    printf '  %s%-16s%s %skey: set%s\n' "$DIM" "$section" "$RST" "$GRN" "$RST"
   else
-    printf '  %s→ %-44s%s %skey: not set%s\n' "$DIM" "$cmd" "$RST" "$DIM" "$RST"
+    printf '  %s%-16s%s %skey: not set%s\n' "$DIM" "$section" "$RST" "$DIM" "$RST"
   fi
 }
 
@@ -249,46 +242,15 @@ pick_providers() { # <provider>... -> SELECTED; returns 1 if nothing chosen
 # ------------------------------------------------------------ token prompt
 
 prompt_token() { # <provider>
-  local p=$1 var hint
+  local p=$1 var tok url hint new
   var=$(api_key_var "$p")
+  tok=$(current_token "$p")
+  url=$(api_key_url "$p")
   section "$p"
   if [ -z "$var" ]; then
     printf '  %s✔ API_KEY is set in configs.jsonc — nothing to paste%s\n' "$GRN" "$RST"
     return 0
   fi
-  prompt_env_var "$var" "$(current_token "$p")"
-  # A provider may also need headers; those are edited by hand.
-  while IFS= read -r hint; do
-    [ -n "$hint" ] || continue
-    printf '  %s⚠ %s is empty — needed for the %s header%s\n' \
-      "$YLW" "${hint%%	*}" "${hint#*	}" "$RST"
-  done < <(
-    models_resolve "$p"
-    while IFS= read -r name; do
-      [ -n "$name" ] || continue
-      v=$(header_var "$name")
-      [ -n "$v" ] && [ -z "$(env_value "$v")" ] && printf '%s\t%s\n' "$v" "$name"
-    done < <(header_names)
-  )
-}
-
-prompt_opencode_vars() { # the "${NAME}"s in configs.jsonc's opencode.overrides
-  local vars=() line var fallback
-  while IFS= read -r line; do
-    if [ -n "$line" ]; then vars+=("$line"); fi
-  done < <("$PYTHON" "$MODELS_PY" opencode-vars)
-  [ "${#vars[@]}" -gt 0 ] || return 0
-  section 'opencode.overrides'
-  for line in "${vars[@]}"; do
-    var=${line%%	*}
-    fallback=${line#*	}
-    prompt_env_var "$var" "$(env_value "$var" "$fallback")"
-  done
-}
-
-prompt_env_var() { # <variable> <its current value> — read a key into .env
-  local var=$1 tok=$2 url hint new
-  url=$(env_example_url "$var")
   printf '  %s%s%s\n' "$DIM" "$var in .env" "$RST"
   if [ -n "$url" ]; then printf '  %sget an API key at %s%s\n' "$DIM" "$url" "$RST"; fi
   if [ -n "$tok" ]; then
@@ -309,37 +271,23 @@ prompt_env_var() { # <variable> <its current value> — read a key into .env
     set_env_var "$var" "$new"
     printf '  %s✔ key updated%s\n' "$GRN" "$RST"
   fi
+  # A provider may also need headers; those are edited by hand.
+  while IFS= read -r hint; do
+    [ -n "$hint" ] || continue
+    printf '  %s⚠ %s is empty — needed for the %s header%s\n' \
+      "$YLW" "${hint%%	*}" "${hint#*	}" "$RST"
+  done < <(
+    models_resolve "$p"
+    while IFS= read -r name; do
+      [ -n "$name" ] || continue
+      v=$(header_var "$name")
+      [ -n "$v" ] && [ -z "$(env_value "$v")" ] && printf '%s\t%s\n' "$v" "$name"
+    done < <(header_names)
+  )
 }
 
 # ------------------------------------------------------------- installation
 
-install_one() { # <provider> <command> <template>
-  local p=$1 cmd=$2 template=$3 bin
-  sed -e 's|@@PROVIDER@@|'"$p"'|g' \
-    -e 's|@@COMMON@@|'"$COMMON"'|g' \
-    "$template" > "$BIN_DIR/$cmd"
-  chmod +x "$BIN_DIR/$cmd"
-  bin=$(tilde "$BIN_DIR/$cmd")
-  if [ -n "$(current_token "$p")" ]; then
-    printf '  %s✔%s %s%s%-10s%s %s%-29s%s %skey: set%s\n' \
-      "$GRN" "$RST" "$B" "$CYN" "$p" "$RST" "$DIM" "$bin" "$RST" "$GRN" "$RST"
-  else
-    printf '  %s✔%s %s%s%-10s%s %s%-29s%s %skey: not set — edit %s%s\n' \
-      "$GRN" "$RST" "$B" "$CYN" "$p" "$RST" "$DIM" "$bin" "$RST" "$YLW" "$(tilde "$ENV_FILE")" "$RST"
-  fi
-}
-
-install_launcher() { # <provider> — the claude<name> command. Commands earlier
-                     # versions generated for the provider go away.
-  local p=$1 cmd
-  install_one "$p" "$(provider_launcher "$p")" "$TEMPLATE"
-  for cmd in $(provider_stale_launchers "$p"); do
-    if [ -f "$BIN_DIR/$cmd" ] && grep -qE '^PROVIDER(_DIR)?="' "$BIN_DIR/$cmd"; then
-      rm -f "$BIN_DIR/$cmd"
-      printf '  %s• removed %s%s\n' "$DIM" "$BIN_DIR/$cmd" "$RST"
-    fi
-  done
-}
 # pi resolves packages from its user settings, so one install covers every
 # provider.
 install_pi_packages() {
@@ -405,9 +353,6 @@ install_npm_cli() { # <command> <package> <display name> <Node.js requirement>
 check_environment() {
   local cmd where
   echo
-  if ! command -v claude >/dev/null 2>&1; then
-    warn "'claude' is not on your PATH — install Claude Code first."
-  fi
   # A generated config is inert until the CLI that reads it is installed, so
   # each missing one is named with where to get it.
   while IFS='|' read -r cmd where; do
@@ -422,14 +367,6 @@ reasonix|Reasonix (https://github.com/esengine/DeepSeek-Reasonix)
 codewhale|Codewhale (https://codewhale.net)
 dsh|DeepSeek Harness (see Requirements in README.md)
 AGENTS
-  case ":$PATH:" in
-    *":$BIN_DIR:"*) ;;
-    *)
-      printf '  %s⚠%s %s\n      %s\n' "$YLW" "$RST" \
-        "$BIN_DIR is not on your PATH — add to your shell rc:" \
-        "export PATH=\"$BIN_DIR:\$PATH\""
-      ;;
-  esac
 }
 
 # -------------------------------------------------------------------- main
@@ -483,13 +420,6 @@ main() {
 
   for p in "${providers[@]}"; do
     prompt_token "$p"
-  done
-  prompt_opencode_vars
-
-  section 'installing claude code compatibles'
-  mkdir -p "$BIN_DIR"
-  for p in "${providers[@]}"; do
-    install_launcher "$p"
   done
 
   install_pi_packages

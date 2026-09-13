@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Register every configured provider in DeepSeek Harness's home patch
-# (`make dsh-global`). dsh has no launcher in this repo: every profile it boots —
+# (`make dsh-global`). Every profile dsh boots —
 # `dsh web`, `dsh --profile headless` — applies the generated
-# ~/.dsh/cordis.patch.yml, and every provider in it is offered there.
+# ~/.dsh/cordis.patch.yml, and every provider in it is offered there — once per
+# API its models speak, since a dsh route takes one API and one base URL.
 #
 # Everything comes from configs.jsonc. The patch is the file written, not
 # settings.yaml: dsh never writes a patch, while its Web UI saves into
@@ -78,18 +79,24 @@ EOF
   done < <(model_rows)
 }
 
-provider_yaml() { # -> its route under `providers`, after models_resolve
-  local name headers=''
+provider_yaml() { # -> the resolved route under `providers`. dsh's Anthropic
+                  # client appends /v1/messages itself; its OpenAI one appends
+                  # only /chat/completions.
+  local name headers='' api base_url
   while IFS= read -r name; do
     [ -n "$name" ] || continue
     headers="$headers
           $(yaml_quote "$name"): $(header_yaml "$name")"
   done < <(header_names)
+  case $M_API in
+    anthropic) api=anthropic-messages; base_url=$M_BASE_URL ;;
+    openai) api=openai-completions; base_url=$M_BASE_URL/v1 ;;
+  esac
   cat <<EOF
-      $(yaml_quote "$(dsh_provider_id)"):
-        displayName: $(yaml_quote "$M_LABEL")
-        api: 'anthropic-messages'
-        baseURL: $(yaml_quote "$M_BASE_URL")
+      $(yaml_quote "$(route_id)"):
+        displayName: $(yaml_quote "${M_LABEL:-$M_SECTION}")
+        api: $(yaml_quote "$api")
+        baseURL: $(yaml_quote "$base_url")
         apiKeyEnv: $(yaml_quote "$M_API_KEY_VAR")${headers:+
         headers:$headers}
         models:
@@ -108,7 +115,9 @@ while IFS= read -r provider; do
     continue
   fi
   providers+=("$provider")
-  blocks+=("$(models_resolve "$provider"; provider_yaml)")
+  for api in $(models_resolve "$provider"; printf '%s' "$M_APIS"); do
+    blocks+=("$(models_resolve "$provider" "$api"; provider_yaml)")
+  done
 done < <(provider_names)
 
 if [ "${#blocks[@]}" -eq 0 ]; then
@@ -119,7 +128,7 @@ fi
 primary=$(default_provider "${providers[@]}")
 start=$(
   models_resolve "$primary"
-  printf '%s\n%s' "$(dsh_provider_id)" "$M_DEFAULT_MODEL"
+  printf '%s\n%s' "$(route_id "$M_DEFAULT_API")" "$M_DEFAULT_MODEL"
 )
 
 # A patch row's `config` replaces the row's config as a whole. Neither row has
@@ -141,7 +150,7 @@ mkdir -p "$(dirname "$OUT")"
   printf '    model: %s\n' "$(yaml_quote "$(sed -n 2p <<<"$start")")"
 } > "$OUT"
 
-echo "  Wrote $OUT (${#blocks[@]} providers, default $(sed -n 2p <<<"$start"))"
+echo "  Wrote $OUT (${#blocks[@]} routes, default $(sed -n 2p <<<"$start"))"
 
 for provider in "${providers[@]}"; do
   (

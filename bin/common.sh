@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Shared settings resolution for the claude launchers, `bin/setup.sh`, the
-# Makefile and the global-config generators.
+# Shared settings resolution for `bin/setup.sh`, the Makefile and the
+# global-config generators.
 #
 # configs.jsonc at the repo root describes every provider: endpoint, models, and
 # the tags that say which slot each model fills. Every value that may come from
@@ -68,7 +68,7 @@ opencode_tokens_dir() { # -> per-provider secret files the generated config refe
   printf '%s/claude-compatibles' "$(opencode_config_dir)"
 }
 
-# The agent CLIs that get no launcher. Each has one generator under bin/ that
+# The agent CLIs this repo configures. Each has one generator under bin/ that
 # writes that CLI's whole global config from configs.jsonc, and `make setup`
 # runs them in this order; every one is also a make target of its own.
 GLOBAL_GENERATORS="pi-global-models
@@ -117,6 +117,11 @@ codewhale_global_config_path() { # -> the config.toml `make codewhale-global` wr
 
 dsh_home() { # -> DeepSeek Harness's own directory: its patch, .env and AGENTS.md
   printf '%s' "${DSH_HOME:-$HOME/.dsh}"
+}
+
+command_code_home() { # -> Command Code's own directory: its AGENTS.md. The CLI
+                      # names it, whatever a provider in configs.jsonc is called.
+  printf '%s/.commandcode' "$HOME" # style-check: allow
 }
 
 dsh_global_config_path() { # -> the home patch `make dsh-global` writes. Every
@@ -196,14 +201,15 @@ env_value() { # <variable name> [<fallback>] -> its value from the .env, or the
 
 # ------------------------------------------------------------------- models
 
-models_resolve() { # <provider> — set the M_* variables from configs.jsonc
+models_resolve() { # <provider> [<api>] — set the M_* variables from configs.jsonc;
+                   # with <api>, the model lists hold only that route's models
   local resolved
   resolved=$(
     set -a
     # shellcheck disable=SC1090
     [ -f "$ENV_FILE" ] && . "$ENV_FILE"
     set +a
-    "$PYTHON" "$MODELS_PY" sh "$1"
+    "$PYTHON" "$MODELS_PY" sh "$1" ${2:+"$2"}
   ) || return 1
   eval "$resolved"
 }
@@ -224,29 +230,8 @@ provider_env_vars() { # -> "<provider><tab><var><tab><what>" per reference
   "$PYTHON" "$MODELS_PY" env-vars
 }
 
-provider_command() { # <provider> -> the launcher command, "claude<name>"
-  ( models_resolve "$1" && printf '%s' "$M_COMMAND" )
-}
-
-provider_stale_commands() { # <provider> -> commands earlier versions installed
-                            # for it; setup and uninstall remove them
-  ( models_resolve "$1" && printf 'pi%s open%s' "$M_NAME" "$M_NAME" )
-}
-
 configured_provider() { # <provider> — valid, and its API_KEY resolves to something?
   ( models_resolve "$1" && [ -n "$M_API_KEY" ] )
-}
-
-require_settings() { # <launcher name> — fail fast on a key that resolved to nothing
-  if [ -z "$M_API_KEY" ]; then
-    echo "$1: API_KEY for '$M_NAME' is empty" >&2
-    if [ -n "$M_API_KEY_VAR" ]; then
-      echo "  set $M_API_KEY_VAR in $ENV_FILE, or run 'make setup'." >&2
-    else
-      echo "  set API_KEY for '$M_NAME' in $CONFIGS_FILE." >&2
-    fi
-    exit 1
-  fi
 }
 
 model_rows() { # -> one "id US context US max_tokens US reasoning US input" line
@@ -294,9 +279,8 @@ env_file_set() { # <file> <variable> <value> — rewrite its line, or append one
 # value" line per header, US being \x1f. The separator is not whitespace on
 # purpose: bash collapses runs of IFS whitespace into a single delimiter, so a
 # tab-separated line with an empty field would shift every field after it.
-# Claude Code takes the pairs as "Name: Value" lines; a generated config is
-# given a reference instead, never a value resolved from the environment —
-# except where the CLI's own format has no way to express one.
+# A generated config is given a reference, never a value resolved from the
+# environment — except where the CLI's own format has no way to express one.
 header_names() { # -> one header name per line
   local name rest
   [ -n "$M_HEADERS" ] || return 0
@@ -322,16 +306,6 @@ header_field() { # <name> <field: var | fallback | value>
 header_var() { header_field "$1" var; }
 header_fallback() { header_field "$1" fallback; }
 header_value() { header_field "$1" value; }
-
-claude_custom_headers() { # -> the "Name: Value" lines ANTHROPIC_CUSTOM_HEADERS takes
-  local name out=''
-  while IFS= read -r name; do
-    [ -n "$name" ] || continue
-    out="$out${out:+
-}$name: $(header_value "$name")"
-  done < <(header_names)
-  printf '%s' "$out"
-}
 
 headers_json() { # <ref fn> -> `"Name": "<ref>"` members, comma-separated; empty
                  # when there are no headers. <ref fn> maps a header name to the
@@ -375,39 +349,34 @@ crush_secret_ref() { # <variable name> [<fallback>] -> the substitution Crush ru
   printf '$(%s)' "$command"
 }
 
-dsh_provider_id() { # -> the route dsh files the provider under. A route whose
-                    # id matches a provider dsh ships, or one in its model
-                    # catalog, is merged into it or refused as a duplicate.
-  printf '%s-anthropic' "$M_NAME"
+route_id() { # [<api>] -> "<provider>-<api>", the id every generated config files
+             # one route under (the resolved route's api by default). Each CLI
+             # ships a catalog of its own and merges or refuses an entry whose
+             # id matches one there, so the suffix also keeps a provider apart
+             # from a catalog entry of the same name.
+  printf '%s-%s' "$M_NAME" "${1:-$M_API}"
 }
 
-codewhale_provider_id() { # -> the id Codewhale files the provider under. It
-                          # ships a catalog of its own too, and only an id
-                          # outside it may declare its own wire protocol.
-  printf '%s-anthropic' "$M_NAME"
-}
-
-crush_provider_id() { # -> the id Crush files the provider under. Crush ships its
-                      # own catalog of providers and merges an entry into the one
-                      # whose id matches, so a locally declared provider takes a
-                      # suffix and stays a provider of its own.
-  printf '%s-anthropic' "$M_NAME"
-}
-
-pi_provider_json() { # <provider> <apiKey reference> [<header ref fn>] — one
-                     # models.json provider block, after models_resolve. HEADERS
-                     # are included when a reference function is given.
-  local id=$1 api_key=$2 headers=''
-  if [ -n "${3:-}" ] && [ -n "$M_HEADERS" ]; then
+pi_provider_json() { # <apiKey reference> [<header ref fn>] — one models.json
+                     # provider block for the resolved route. HEADERS are
+                     # included when a reference function is given. pi's
+                     # Anthropic client appends /v1/messages itself; its OpenAI
+                     # one appends only /chat/completions.
+  local api_key=$1 headers='' base_url api
+  if [ -n "${2:-}" ] && [ -n "$M_HEADERS" ]; then
     headers="      \"headers\": {
-$(headers_json "$3")
+$(headers_json "$2")
       },
 "
   fi
+  case $M_API in
+    anthropic) api=anthropic-messages; base_url=$M_BASE_URL ;;
+    openai) api=openai-completions; base_url=$M_BASE_URL/v1 ;;
+  esac
   cat <<EOF
-    "$id": {
-      "baseUrl": "$M_BASE_URL",
-      "api": "anthropic-messages",
+    "$(route_id)": {
+      "baseUrl": "$base_url",
+      "api": "$api",
       "apiKey": "$api_key",
 ${headers}      "models": [
 $M_PI_MODELS_JSON
@@ -433,29 +402,19 @@ opencode_agent_json() { # <provider> <prompt file> — the lean agent for a prov
     "$name": {
       "description": "$name with a short prompt and core tools only",
       "mode": "primary",
-      "model": "$(opencode_provider_id)/$M_DEFAULT_MODEL",
+      "model": "$(route_id "$M_DEFAULT_API")/$M_DEFAULT_MODEL",
       "prompt": "{file:$prompt}",
       "tools": { $tools }
     }
 EOF
 }
 
-opencode_provider_id() { # -> the id OpenCode files the resolved provider under.
-                         # The suffix keeps it apart from any provider of the
-                         # same name in OpenCode's own catalog, whose definition
-                         # would otherwise be merged into this one.
-  printf '%s-anthropic' "$M_NAME"
-}
-
-# The heading every provider from configs.jsonc shares in OpenCode's model
-# dialog, which groups by display name. OpenCode's own services keep headings of
-# their own, and the dialog pins OpenCode Zen to the top.
-OPENCODE_PROVIDER_HEADING="Subscriptions"
-
 opencode_provider_json() { # <apiKey reference> [<header ref fn>] — one provider
-                           # block. The key and the header values are only ever
-                           # referenced ({file:...}).
-  local api_key=$1 headers=''
+                           # block for the resolved route. The key and the header
+                           # values are only ever referenced ({file:...}). Its
+                           # name is the provider's heading: the model dialog
+                           # groups by display name.
+  local api_key=$1 headers='' npm
   if [ -n "${2:-}" ] && [ -n "$M_HEADERS" ]; then
     headers=",
         \"headers\": {
@@ -463,13 +422,16 @@ $(headers_json "$2")
         }"
   fi
 
-  # The AI SDK Anthropic provider appends "/messages" to its baseURL, while
-  # BASE_URL is the Claude Code form that gets "/v1/messages" appended — so
-  # baseURL is BASE_URL plus "/v1".
+  # Both AI SDK providers append only "/messages" or "/chat/completions" to
+  # their baseURL, so it is BASE_URL plus "/v1".
+  case $M_API in
+    anthropic) npm=@ai-sdk/anthropic ;;
+    openai) npm=@ai-sdk/openai-compatible ;;
+  esac
   cat <<EOF
-    "$(opencode_provider_id)": {
-      "npm": "@ai-sdk/anthropic",
-      "name": "$OPENCODE_PROVIDER_HEADING",
+    "$(route_id)": {
+      "npm": "$npm",
+      "name": "$M_SECTION",
       "options": {
         "baseURL": "$M_BASE_URL/v1",
         "apiKey": "$api_key"$headers

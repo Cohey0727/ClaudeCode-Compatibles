@@ -32,7 +32,7 @@ CONTEXT_TARGETS=(
   "$HOME/.codex/AGENTS.md"
   "$(crush_config_dir)/CRUSH.md"
   "$(dsh_home)/AGENTS.md"
-  "$HOME/.commandcode/AGENTS.md"
+  "$(command_code_home)/AGENTS.md"
 )
 
 context_reader() { # <target> -> the CLI that reads it
@@ -42,7 +42,7 @@ context_reader() { # <target> -> the CLI that reads it
     "$HOME/.codex/AGENTS.md") echo codex ;;
     "$(crush_config_dir)/CRUSH.md") echo crush ;;
     "$(dsh_home)/AGENTS.md") echo dsh ;;
-    "$HOME/.commandcode/AGENTS.md") echo cmd ;;
+    "$(command_code_home)/AGENTS.md") echo cmd ;;
   esac
 }
 

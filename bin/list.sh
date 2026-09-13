@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Everything this repo manages (`make list`): every provider with its launcher
-# command and endpoint, then every skill and subagent with its install status.
+# Everything this repo manages (`make list`): every provider with its heading and
+# endpoint, then every skill and subagent with its install status.
 
 set -euo pipefail
 
@@ -18,7 +18,7 @@ list_providers() {
     url=$(set +e; . "$COMMON"; models_resolve "$p" && printf '%s' "$M_BASE_URL")
     printf '  %s%-10s%s %s->%s %-24s %s%s%s\n' \
       "$B" "$p" "$RST" "$DIM" "$RST" \
-      "$(set +e; . "$COMMON"; provider_command "$p")" "$DIM" "$url" "$RST"
+      "$(set +e; . "$COMMON"; models_resolve "$p" && printf '%s' "$M_SECTION")" "$DIM" "$url" "$RST"
     while IFS=$'\t' read -r id tags; do
       [ -n "$id" ] || continue
       printf '  %s%13s%s %-24s %s%s%s\n' "$DIM" '' "$RST" "$id" "$DIM" "$tags" "$RST"

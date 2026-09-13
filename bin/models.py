@@ -1,22 +1,28 @@
 #!/usr/bin/env python3
 """Resolve configs.jsonc into the values every agent CLI this repo writes for needs.
 
-configs.jsonc at the repo root holds every provider: its endpoint, the models it
-serves, and the tags that say which slot each model fills. In any string,
-"${NAME}" is read from the environment and "${NAME:-fallback}" falls back to the
-text after ":-" when NAME is unset or empty — the shell's own syntax. The .env
-beside it holds those values, so the file carries references to secrets rather
-than secrets, and an endpoint can ship a default that .env overrides.
+configs.jsonc at the repo root holds every provider, grouped by the heading it
+sits under in OpenCode's model dialog: its endpoint, the API each model is
+spoken to over, the models it serves, and the tags that say which slot each
+model fills. In any string, "${NAME}" is read from the environment and
+"${NAME:-fallback}" falls back to the text after ":-" when NAME is unset or
+empty — the shell's own syntax. The .env beside it holds those values, so the
+file carries references to secrets rather than secrets, and an endpoint can ship
+a default that .env overrides.
+
+A provider whose models speak more than one API is registered once per API: a
+route is a provider narrowed to the models of one API.
 
 The file is JSON with // line comments allowed.
 
-  models.py sh <provider>       shell assignments (M_-prefixed) for eval
+  models.py sh <provider> [<api>]  shell assignments (M_-prefixed) for eval,
+                                   narrowed to one route when <api> is given
   models.py check [<provider>]  validate, print nothing on success
   models.py tags <provider>     "<id><tab><tag>,<tag>" per model
   models.py providers           one provider name per line
   models.py primary             the provider marked "primary", if any
-  models.py opencode-merge <dir>  the OpenCode config on stdin, opencode.overrides merged in
-  models.py opencode-vars       every "${NAME}" opencode.overrides references, with its fallback
+  models.py opencode-merge      the OpenCode config on stdin, opencode.overrides merged in
+  models.py vocabulary          every concrete name no file but configs.jsonc may hold
   models.py env-vars            every "${NAME}" the file references, with its provider
 """
 
@@ -29,32 +35,13 @@ from pathlib import Path
 
 CONFIGS = Path(__file__).resolve().parent.parent / "configs.jsonc"
 
-# "default" and "small" are the two roles, and every slot follows one of them.
-# The rest are the Claude Code variables that can break away from that pair,
-# spelled exactly as Claude Code reads them; there is no tag for a variable
-# whose only meaning would be "the default one" or "the small one".
-ROLE_TAGS = (
-    "default",
-    "small",
-    "ANTHROPIC_DEFAULT_OPUS_MODEL",
-    "ANTHROPIC_DEFAULT_SONNET_MODEL",
-    "ANTHROPIC_DEFAULT_FABLE_MODEL",
-    "CLAUDE_CODE_SUBAGENT_MODEL",
-)
+ROLE_TAGS = ("default", "small")
 
-# Claude Code variable -> the tags it follows, most specific first.
-CLAUDE_SLOTS = {
-    "ANTHROPIC_MODEL": ("default",),
-    "ANTHROPIC_DEFAULT_OPUS_MODEL": ("ANTHROPIC_DEFAULT_OPUS_MODEL", "default"),
-    "ANTHROPIC_DEFAULT_SONNET_MODEL": ("ANTHROPIC_DEFAULT_SONNET_MODEL", "default"),
-    "ANTHROPIC_DEFAULT_FABLE_MODEL": ("ANTHROPIC_DEFAULT_FABLE_MODEL", "default"),
-    "ANTHROPIC_DEFAULT_HAIKU_MODEL": ("small", "default"),
-    "CLAUDE_CODE_SUBAGENT_MODEL": ("CLAUDE_CODE_SUBAGENT_MODEL", "small", "default"),
-}
+# "anthropic" is POST <BASE_URL>/v1/messages, "openai" POST <BASE_URL>/v1/chat/completions.
+APIS = ("anthropic", "openai")
 
-MODEL_KEYS = {"id", "claude_id", "tags", "context_window", "max_tokens", "reasoning", "input"}
-PROVIDER_KEYS = {"label", "API_KEY", "BASE_URL", "REQUEST_HEADERS", "primary", "defaults", "claude", "opencode", "models"}
-CLAUDE_KEYS = {"command", "args", "env", "auto_compact_window"}
+MODEL_KEYS = {"id", "api", "tags", "context_window", "max_tokens", "reasoning", "input"}
+PROVIDER_KEYS = {"label", "API_KEY", "BASE_URL", "REQUEST_HEADERS", "api", "primary", "defaults", "opencode", "models"}
 OPENCODE_KEYS = {"lean", "context_window", "max_tokens"}
 OPENCODE_ROOT_KEYS = {"overrides"}
 
@@ -129,6 +116,12 @@ def _int(where, value, key):
     return value
 
 
+def _api(where, value):
+    if value not in APIS:
+        raise ConfigError(f"{where}: api must be one of {', '.join(APIS)}, got {value!r}")
+    return value
+
+
 def load_root():
     try:
         raw = json.loads(strip_comments(CONFIGS.read_text()))
@@ -143,8 +136,26 @@ def load_root():
     return raw
 
 
+def sections():
+    """provider name -> (heading, its raw entry), in file order.
+
+    configs.jsonc nests providers under the heading they share in OpenCode's
+    model dialog; everything but that dialog only needs the name.
+    """
+    found = {}
+    for heading, group in load_root()["providers"].items():
+        where = f"{CONFIGS}: providers.{heading}"
+        if not isinstance(group, dict) or not group:
+            raise ConfigError(f"{where}: must be a non-empty object of providers")
+        for name, raw in group.items():
+            if name in found:
+                raise ConfigError(f"{where}.{name}: the name is already a provider under {found[name][0]!r}")
+            found[name] = (heading, raw)
+    return found
+
+
 def load_file():
-    return load_root()["providers"]
+    return {name: raw for name, (_, raw) in sections().items()}
 
 
 def opencode_overrides():
@@ -158,49 +169,6 @@ def opencode_overrides():
     if not isinstance(overrides, dict):
         raise ConfigError(f"{where}: overrides must be an object")
     return overrides
-
-
-def strings(value):
-    """Every string anywhere inside a JSON value."""
-    if isinstance(value, dict):
-        for item in value.values():
-            yield from strings(item)
-    elif isinstance(value, list):
-        for item in value:
-            yield from strings(item)
-    elif isinstance(value, str):
-        yield value
-
-
-def map_strings(value, fn):
-    """A JSON value with fn applied to every string inside it."""
-    if isinstance(value, dict):
-        return {key: map_strings(item, fn) for key, item in value.items()}
-    if isinstance(value, list):
-        return [map_strings(item, fn) for item in value]
-    return fn(value) if isinstance(value, str) else value
-
-
-def opencode_vars():
-    """(variable, fallback) per "${NAME}" in opencode.overrides, first fallback per name."""
-    found = {}
-    for text in strings(opencode_overrides()):
-        for var, fallback in REFERENCE.findall(text):
-            found.setdefault(var, fallback)
-    return found
-
-
-def opencode_file_references(directory):
-    """opencode.overrides with each "${NAME}" swapped for {file:<directory>/NAME.var}.
-
-    The generator writes that file from the .env, so opencode.json holds a path
-    and never the value.
-    """
-    directory = directory.rstrip("/")
-    return map_strings(
-        opencode_overrides(),
-        lambda text: REFERENCE.sub(lambda m: f"{{file:{directory}/{m.group(1)}.var}}", text),
-    )
 
 
 def deep_merge(base, overrides):
@@ -226,23 +194,25 @@ def primary_provider():
 
 def load(name):
     """One provider, validated, with its tags resolved to slots."""
-    providers = load_file()
+    providers = sections()
     if name not in providers:
         known = ", ".join(providers)
         raise ConfigError(f"{CONFIGS}: no provider named {name!r} (known: {known})")
-    where = f"{CONFIGS}: providers.{name}"
-    raw = providers[name]
+    heading, raw = providers[name]
+    where = f"{CONFIGS}: providers.{heading}.{name}"
     if not isinstance(raw, dict):
         raise ConfigError(f"{where}: must be an object")
     _check_keys(where, raw, PROVIDER_KEYS)
 
-    label = raw.get("label", name)
-    if not isinstance(label, str) or not label:
-        raise ConfigError(f"{where}: label must be a non-empty string")
+    label = raw.get("label", "")
+    if not isinstance(label, str):
+        raise ConfigError(f"{where}: label must be a string")
 
     base_url = expand(raw.get("BASE_URL") or "").rstrip("/")
     if not base_url:
         raise ConfigError(f"{where}: BASE_URL is required")
+
+    api = _api(where, raw.get("api"))
 
     headers_raw = raw.get("REQUEST_HEADERS") or {}
     if not isinstance(headers_raw, dict):
@@ -253,9 +223,7 @@ def load(name):
         headers.append({"name": key, "var": var, "fallback": fallback, "value": expand(value)})
 
     defaults = raw.get("defaults") or {}
-    _check_keys(f"{where}.defaults", defaults, MODEL_KEYS - {"id", "claude_id", "tags"})
-    claude = raw.get("claude") or {}
-    _check_keys(f"{where}.claude", claude, CLAUDE_KEYS)
+    _check_keys(f"{where}.defaults", defaults, MODEL_KEYS - {"id", "api", "tags"})
     opencode = raw.get("opencode") or {}
     _check_keys(f"{where}.opencode", opencode, OPENCODE_KEYS)
 
@@ -283,7 +251,7 @@ def load(name):
             raise ConfigError(f"{at}: input must be an array of \"text\" / \"image\"")
         model = {
             "id": model_id,
-            "claude_id": merged.get("claude_id", model_id),
+            "api": _api(at, merged.get("api", api)),
             "tags": tags,
             "context_window": _int(at, merged.get("context_window"), "context_window"),
             "max_tokens": _int(at, merged.get("max_tokens"), "max_tokens"),
@@ -301,39 +269,39 @@ def load(name):
     if "default" not in by_tag:
         raise ConfigError(f"{where}: no model is tagged 'default'")
 
-    slots = {
-        slot: next(by_tag[tag] for tag in candidates if tag in by_tag)
-        for slot, candidates in CLAUDE_SLOTS.items()
-    }
-
-    env = claude.get("env") or {}
-    if not isinstance(env, dict):
-        raise ConfigError(f"{where}.claude: env must be an object")
-
     api_key_var, api_key_fallback = sole_reference(raw.get("API_KEY") or "")
     return {
         "name": name,
+        "section": heading,
         "label": label,
         "api_key": expand(raw.get("API_KEY") or ""),
         "api_key_var": api_key_var,
         "api_key_fallback": api_key_fallback,
         "base_url": base_url,
         "headers": headers,
-        "command": claude.get("command") or f"claude{name}",
-        "args": claude.get("args", ""),
-        "env": {k: str(v) for k, v in env.items()},
-        "auto_compact_window": claude.get("auto_compact_window") or slots["ANTHROPIC_MODEL"]["context_window"],
         "lean": bool(opencode.get("lean", False)),
         "opencode_context_window": opencode.get("context_window"),
         "opencode_max_tokens": opencode.get("max_tokens"),
         "models": models,
-        "slots": slots,
+        "apis": list(dict.fromkeys(model["api"] for model in models)),
         "default_model": by_tag["default"],
         "small_model": by_tag.get("small", by_tag["default"]),
     }
 
 
-def pi_models_json(config):
+def route_models(config, api):
+    """The provider's models, or only those spoken to over api when one is given."""
+    if not api:
+        return config["models"]
+    if api not in config["apis"]:
+        raise ConfigError(
+            f"{CONFIGS}: provider {config['name']!r} has no {api!r} model"
+            f" (its apis: {', '.join(config['apis'])})"
+        )
+    return [model for model in config["models"] if model["api"] == api]
+
+
+def pi_models_json(models):
     """The "models" array body of a pi models.json provider block, indented to fit."""
     return ",\n".join(
         "        {\n"
@@ -343,30 +311,31 @@ def pi_models_json(config):
         f'          "contextWindow": {model["context_window"]},\n'
         f'          "maxTokens": {model["max_tokens"]}\n'
         "        }"
-        for model in config["models"]
+        for model in models
     )
 
 
-def opencode_models_json(config):
+def opencode_models_json(config, models):
     """The "models" object body of an OpenCode provider block, indented to fit.
 
-    Every provider shares one heading in OpenCode's model dialog, so each model's
-    display name leads with the provider's label. OpenCode compacts a session
-    once it fills the context, so opencode.context_window caps the window a
-    conversation may grow into — not the endpoint's capacity.
+    A provider's heading is shared by every provider in its section, so a model's
+    display name leads with the provider's label when it has one. OpenCode
+    compacts a session once it fills the context, so opencode.context_window caps
+    the window a conversation may grow into — not the endpoint's capacity.
     """
     context_cap = config["opencode_context_window"]
     output_cap = config["opencode_max_tokens"]
+    prefix = f"{config['label']} " if config["label"] else ""
     return ",\n".join(
         f'        "{model["id"]}": {{'
-        f' "name": {json.dumps(config["label"] + " " + model["id"], ensure_ascii=False)},'
+        f' "name": {json.dumps(prefix + model["id"], ensure_ascii=False)},'
         f' "limit": {{ "context": {context_cap or model["context_window"]},'
         f' "output": {output_cap or model["max_tokens"]} }} }}'
-        for model in config["models"]
+        for model in models
     )
 
 
-def model_rows(config):
+def model_rows(models):
     """One line per model: id, context window, max tokens, reasoning, input kinds.
 
     The fields are separated by US (\x1f) so a generator can read them back with
@@ -383,16 +352,16 @@ def model_rows(config):
                 ",".join(model["input"]),
             )
         )
-        for model in config["models"]
+        for model in models
     )
 
 
-def shell(config):
-    slots = config["slots"]
+def shell(config, api=""):
+    models = route_models(config, api)
     values = {
         "M_NAME": config["name"],
+        "M_SECTION": config["section"],
         "M_LABEL": config["label"],
-        "M_COMMAND": config["command"],
         "M_API_KEY": config["api_key"],
         "M_API_KEY_VAR": config["api_key_var"],
         "M_API_KEY_FALLBACK": config["api_key_fallback"],
@@ -405,21 +374,17 @@ def shell(config):
         "M_HEADERS": "\n".join(
             "\x1f".join((h["name"], h["var"], h["fallback"], h["value"])) for h in config["headers"]
         ),
-        "M_CLAUDE_ARGS": config["args"],
-        "M_CLAUDE_ENV_SH": "\n".join(
-            f"export {key}={shlex.quote(value)}" for key, value in sorted(config["env"].items())
-        ),
-        "M_CLAUDE_CODE_AUTO_COMPACT_WINDOW": str(config["auto_compact_window"]),
+        "M_APIS": " ".join(config["apis"]),
+        "M_API": api,
         "M_DEFAULT_MODEL": config["default_model"]["id"],
+        "M_DEFAULT_API": config["default_model"]["api"],
         "M_SMALL_MODEL": config["small_model"]["id"],
+        "M_SMALL_API": config["small_model"]["api"],
         "M_OPENCODE_LEAN": "true" if config["lean"] else "false",
-        "M_OPENCODE_MODELS_JSON": opencode_models_json(config),
-        "M_PI_MODELS_JSON": pi_models_json(config),
-        "M_MODEL_ROWS": model_rows(config),
-        "M_MODEL_IDS": " ".join(model["id"] for model in config["models"]),
+        "M_OPENCODE_MODELS_JSON": opencode_models_json(config, models),
+        "M_PI_MODELS_JSON": pi_models_json(models),
+        "M_MODEL_ROWS": model_rows(models),
     }
-    for slot in CLAUDE_SLOTS:
-        values[f"M_{slot}"] = slots[slot]["claude_id"]
     return "\n".join(f"{key}={shlex.quote(value)}" for key, value in values.items())
 
 
@@ -433,9 +398,8 @@ def vocabulary():
     for name in load_file():
         config = load(name)
         words.update(model["id"] for model in config["models"])
-        words.update(model["claude_id"] for model in config["models"])
         words.add(config["base_url"])
-        words.add(f"{name}-anthropic")
+        words.update(f"{name}-{api}" for api in config["apis"])
     # A name shorter than this cannot be searched for without matching prose.
     return "\n".join(sorted(w for w in words if len(w) >= 4 and w != "default"))
 
@@ -461,8 +425,8 @@ def env_vars():
 def main(argv):
     action = argv[1] if len(argv) > 1 else ""
     argument = argv[2] if len(argv) > 2 else ""
-    actions = ("sh", "check", "tags", "providers", "env-vars", "primary", "opencode-merge", "opencode-vars", "vocabulary")
-    if action not in actions:
+    api = argv[3] if len(argv) > 3 else ""
+    if action not in ("sh", "check", "tags", "providers", "env-vars", "primary", "opencode-merge", "vocabulary"):
         print(__doc__.strip(), file=sys.stderr)
         return 2
     try:
@@ -470,15 +434,9 @@ def main(argv):
             print("\n".join(load_file()))
         elif action == "primary":
             print(primary_provider())
-        elif action == "opencode-vars":
-            print("\n".join(f"{var}\t{fallback}" for var, fallback in opencode_vars().items()))
-        elif action == "opencode-merge" and not argument:
-            print("models.py opencode-merge: the directory the .var files go in is required", file=sys.stderr)
-            return 2
         elif action == "opencode-merge":
             config = json.loads(strip_comments(sys.stdin.read()))
-            merged = deep_merge(config, opencode_file_references(argument))
-            print(json.dumps(merged, indent=2, ensure_ascii=False))
+            print(json.dumps(deep_merge(config, opencode_overrides()), indent=2, ensure_ascii=False))
         elif action == "vocabulary":
             print(vocabulary())
         elif action == "env-vars":
@@ -494,7 +452,7 @@ def main(argv):
         else:
             config = load(argument)
             if action == "sh":
-                print(shell(config))
+                print(shell(config, api))
             elif action == "tags":
                 print("\n".join(f"{m['id']}\t{','.join(m['tags'])}" for m in config["models"]))
     except ConfigError as exc:

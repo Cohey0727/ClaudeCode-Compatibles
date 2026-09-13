@@ -34,8 +34,8 @@ agent は 3 つで、CLI ごとに generator が 1 本ずつある。そこを�
 
 | 欲しいもの | 取り方 |
 |---|---|
-| モデル id（`<provider id>/<model>`） | `bin/model-ref.sh <provider> <agent> <main\|small>` |
-| provider ごとの値 | `models_resolve <provider> <agent>` → `M_*` |
+| モデル id（`<route id>/<model>`） | `bin/model-ref.sh <provider> [main\|small]` |
+| provider ごとの値 | `models_resolve <provider> [<api>]` → `M_*` |
 | agent ごとの値 | `settings_resolve <agent>` → `S_*` |
 | provider / agent の一覧 | `provider_names` / `agent_names` |
 

@@ -1,12 +1,7 @@
 SHELL   := /bin/bash
-PREFIX  ?= $(HOME)/.local
-BIN_DIR := $(PREFIX)/bin
 
 ROOT          := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 COMMON        := $(ROOT)/bin/common.sh
-
-# Every provider target acts on every provider in configs.jsonc.
-PROVIDER_LIST := $(shell . $(ROOT)/bin/common.sh && provider_names)
 
 .PHONY: setup setup-providers setup-skills list uninstall help pi-global opencode-global \
 	crush-global reasonix-global codewhale-global dsh-global check hooks
@@ -17,10 +12,10 @@ setup: setup-providers
 	@SKIP_BANNER=1 "$(ROOT)/bin/skills-setup.sh"
 
 # Interactive wizard: checkbox provider picker, per-provider API token
-# prompts (Enter keeps the current token), launcher install, pi package
-# install, one global config per agent CLI, PATH checks.
+# prompts (Enter keeps the current token), pi package install, one global
+# config per agent CLI, PATH checks.
 setup-providers:
-	@BIN_DIR="$(BIN_DIR)" "$(ROOT)/bin/setup.sh"
+	@"$(ROOT)/bin/setup.sh"
 
 # Symlink every skill under skills/ and every subagent under agents/ into
 # ~/.claude (Claude Code) and ~/.agents (Codex and other agent CLIs), and
@@ -47,11 +42,6 @@ list:
 	@"$(ROOT)/bin/list.sh"
 
 uninstall:
-	@for p in $(PROVIDER_LIST); do \
-		for cmd in $$(. "$(COMMON)"; provider_command "$$p"; printf ' '; provider_stale_commands "$$p"); do \
-			rm -f "$(BIN_DIR)/$$cmd" && echo "  Removed $(BIN_DIR)/$$cmd"; \
-		done; \
-	done
 	@. "$(COMMON)"; for out in $$(generated_config_paths); do \
 		if generated_here "$$out"; then \
 			rm -f "$$out" && echo "  Removed $$out"; \
@@ -72,8 +62,8 @@ uninstall:
 	@echo "  Note: .env is left in place. Delete it manually if no longer needed."
 	@"$(ROOT)/bin/skills-uninstall.sh"
 
-# One target per agent CLI that has no launcher: each writes that CLI's own
-# global config from configs.jsonc, so a bare `pi`, `opencode`, `crush`,
+# One target per agent CLI: each writes that CLI's own global config from
+# configs.jsonc, so a bare `pi`, `opencode`, `crush`,
 # `reasonix` or `codewhale`, and every `dsh --profile`, lists every provider.
 # `make setup` runs them all.
 pi-global:

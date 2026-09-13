@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Register every configured provider in Crush's global config
-# (`make crush-global`). Crush has no launcher in this repo: a bare `crush`
+# (`make crush-global`). A bare `crush`
 # reads the generated ~/.config/crush/crushrc, and every provider in it is
 # offered there.
 #
@@ -10,8 +10,8 @@
 # out of the .env — a rotated key needs no re-run.
 #
 # Crush ships a provider catalog of its own and merges an entry into the one
-# whose id matches, so a provider declared here takes an id of its own and its
-# models are declared in full.
+# whose id matches, so a provider declared here takes a route id of its own —
+# one per API its models speak — and its models are declared in full.
 
 set -euo pipefail
 
@@ -46,13 +46,19 @@ crush_header() { # <header name>
   header_value "$1"
 }
 
-provider_crushrc() { # <provider> — its provider and model lines, after models_resolve
-  local id name context max reasoning input images
-  id=$(crush_provider_id)
+provider_crushrc() { # -> the resolved route's provider and model lines. Crush's
+                     # Anthropic client appends v1/messages itself; its OpenAI
+                     # one appends only chat/completions.
+  local id name context max reasoning input images type base_url
+  id=$(route_id)
+  case $M_API in
+    anthropic) type=anthropic; base_url=$M_BASE_URL ;;
+    openai) type=openai-compat; base_url=$M_BASE_URL/v1 ;;
+  esac
 
   printf 'provider add %s \\\n' "$id"
-  printf '  --type anthropic \\\n'
-  printf '  --base-url "%s" \\\n' "$M_BASE_URL"
+  printf '  --type %s \\\n' "$type"
+  printf '  --base-url "%s" \\\n' "$base_url"
   while IFS= read -r name; do
     [ -n "$name" ] || continue
     printf '  --extra-header %s "%s" \\\n' "$name" "$(crush_header "$name")"
@@ -80,7 +86,9 @@ while IFS= read -r provider; do
   [ -n "$provider" ] || continue
   configured_provider "$provider" || continue
   providers+=("$provider")
-  blocks+=("$(models_resolve "$provider"; provider_crushrc "$provider")")
+  for api in $(models_resolve "$provider"; printf '%s' "$M_APIS"); do
+    blocks+=("$(models_resolve "$provider" "$api"; provider_crushrc)")
+  done
 done < <(provider_names)
 
 if [ "${#blocks[@]}" -eq 0 ]; then
@@ -93,9 +101,11 @@ fi
 primary=$(default_provider "${providers[@]}")
 slots=$(
   models_resolve "$primary"
-  printf '%s\n%s\n%s' "$(crush_provider_id)" "$M_DEFAULT_MODEL" "$M_SMALL_MODEL"
+  printf '%s/%s\n%s/%s' "$(route_id "$M_DEFAULT_API")" "$M_DEFAULT_MODEL" \
+    "$(route_id "$M_SMALL_API")" "$M_SMALL_MODEL"
 )
-primary_id=$(sed -n 1p <<<"$slots")
+large=$(sed -n 1p <<<"$slots")
+small=$(sed -n 2p <<<"$slots")
 
 mkdir -p "$(dirname "$OUT")"
 {
@@ -103,8 +113,8 @@ mkdir -p "$(dirname "$OUT")"
   for block in "${blocks[@]}"; do
     printf '\n%s\n' "$block"
   done
-  printf '\nmodel large %s/%s\n' "$primary_id" "$(sed -n 2p <<<"$slots")"
-  printf 'model small %s/%s\n' "$primary_id" "$(sed -n 3p <<<"$slots")"
+  printf '\nmodel large %s\n' "$large"
+  printf 'model small %s\n' "$small"
 } > "$OUT"
 
-echo "  Wrote $OUT (${#blocks[@]} providers, large $primary_id/$(sed -n 2p <<<"$slots"))"
+echo "  Wrote $OUT (${#blocks[@]} routes, large $large)"

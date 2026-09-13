@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Register every configured provider in Codewhale's global config
-# (`make codewhale-global`). Codewhale has no launcher in this repo: a bare
+# (`make codewhale-global`). A bare
 # `codewhale` reads the generated ~/.codewhale/config.toml, and every provider
 # in it is offered there.
 #
@@ -13,8 +13,8 @@
 #
 # Codewhale ships a provider catalog of its own, and an entry it does not
 # recognise has to declare itself custom. A provider declared here therefore
-# takes an id of its own, says which wire protocol it speaks, and declares its
-# models in full.
+# takes a route id of its own — one per API its models speak — says which wire
+# protocol it speaks, and declares its models in full.
 
 set -euo pipefail
 
@@ -40,22 +40,27 @@ headers_toml() { # -> an `http_headers = { ... }` line, or nothing when there ar
   printf 'http_headers = { %s }' "$out"
 }
 
-provider_toml() { # <provider> — its [providers.x] table, after models_resolve
-  local headers
+provider_toml() { # -> the resolved route's [providers.x] table. Codewhale adds
+                  # /v1 to a base URL without a version segment, for either wire.
+  local headers wire
   headers=$(headers_toml)
+  case $M_API in
+    anthropic) wire=anthropic-messages ;;
+    openai) wire=chat ;;
+  esac
   cat <<EOF
-[providers.$(codewhale_provider_id)]
+[providers.$(route_id)]
 kind = "openai-compatible"
-wire = "anthropic-messages"
+wire = "$wire"
 base_url = "$M_BASE_URL"
 api_key = "$M_API_KEY"${headers:+
 $headers}
 EOF
 }
 
-models_toml() { # <provider> — one [[custom_models]] entry per model, after
-                # models_resolve. Codewhale reads a model's limits from nowhere
-                # else, and an entry's base_url has to match its provider's.
+models_toml() { # -> one [[custom_models]] entry per model of the resolved route.
+                # Codewhale reads a model's limits from nowhere else, and an
+                # entry's base_url has to match its provider's.
   local id context max reasoning input images
   while IFS=$'\x1f' read -r id context max reasoning input; do
     [ -n "$id" ] || continue
@@ -63,7 +68,7 @@ models_toml() { # <provider> — one [[custom_models]] entry per model, after
     cat <<EOF
 
 [[custom_models]]
-provider = "$(codewhale_provider_id)"
+provider = "$(route_id)"
 base_url = "$M_BASE_URL"
 id = "$id"
 display_name = "$id"
@@ -81,11 +86,13 @@ while IFS= read -r provider; do
   [ -n "$provider" ] || continue
   configured_provider "$provider" || continue
   providers+=("$provider")
-  blocks+=("$(
-    models_resolve "$provider"
-    provider_toml "$provider"
-    models_toml "$provider"
-  )")
+  for api in $(models_resolve "$provider"; printf '%s' "$M_APIS"); do
+    blocks+=("$(
+      models_resolve "$provider" "$api"
+      provider_toml
+      models_toml
+    )")
+  done
 done < <(provider_names)
 
 if [ "${#blocks[@]}" -eq 0 ]; then
@@ -97,7 +104,7 @@ fi
 primary=$(default_provider "${providers[@]}")
 start=$(
   models_resolve "$primary"
-  printf '%s\n%s' "$(codewhale_provider_id)" "$M_DEFAULT_MODEL"
+  printf '%s\n%s' "$(route_id "$M_DEFAULT_API")" "$M_DEFAULT_MODEL"
 )
 
 # The file holds keys, so it is created at 600 before anything is written to it.
@@ -114,4 +121,4 @@ chmod 600 "$OUT"
 } > "$OUT"
 chmod 600 "$OUT"
 
-echo "  Wrote $OUT (${#blocks[@]} providers, default $(sed -n 2p <<<"$start"), mode 600 — it holds the keys)"
+echo "  Wrote $OUT (${#blocks[@]} routes, default $(sed -n 2p <<<"$start"), mode 600 — it holds the keys)"

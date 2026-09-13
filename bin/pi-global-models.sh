@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Register every configured provider in pi's global models.json
-# (`make pi-global`). pi has no launcher in this repo: a bare `pi` reads the
+# (`make pi-global`). A bare `pi` reads the
 # generated ~/.pi/agent/models.json, and /model lists every provider.
 #
 # Everything comes from configs.jsonc. No secret is written here: an API_KEY or
@@ -8,9 +8,8 @@
 # pi runs at request time to read it back out of the .env, so a rotated key or a
 # computed header needs no re-run.
 #
-# A provider is registered under its name in configs.jsonc, which is what pi shows
-# next to a model. Where that name also exists in pi's own catalog, pi keeps
-# this file's endpoint and key and adds the catalog's models to the list.
+# A provider is registered once per API its models speak, as "<name>-<api>":
+# pi takes one base URL and one API per provider entry.
 
 set -euo pipefail
 
@@ -50,13 +49,15 @@ providers=()
 entries=()
 while IFS= read -r provider; do
   [ -n "$provider" ] || continue
-  # Each provider is resolved in a subshell so none leaks into the next.
-  entry=$(
-    models_resolve "$provider" || exit 1
-    [ -n "$M_API_KEY" ] || exit 0
-    pi_provider_json "$provider" "$(pi_api_key_ref)" pi_header_ref
-  )
-  if [ -n "$entry" ]; then providers+=("$provider"); entries+=("$entry"); fi
+  configured_provider "$provider" || continue
+  providers+=("$provider")
+  # Each route is resolved in a subshell so none leaks into the next.
+  for api in $(models_resolve "$provider"; printf '%s' "$M_APIS"); do
+    entries+=("$(
+      models_resolve "$provider" "$api"
+      pi_provider_json "$(pi_api_key_ref)" pi_header_ref
+    )")
+  done
 done < <(provider_names)
 
 if [ "${#entries[@]}" -eq 0 ]; then
@@ -64,12 +65,14 @@ if [ "${#entries[@]}" -eq 0 ]; then
   exit 1
 fi
 
-# The provider pi starts on, and its main model.
+# The route pi starts on, and its main model.
 primary=$(default_provider "${providers[@]}")
-start_model=$(
+start=$(
   models_resolve "$primary"
-  printf '%s' "$M_DEFAULT_MODEL"
+  printf '%s\n%s' "$(route_id "$M_DEFAULT_API")" "$M_DEFAULT_MODEL"
 )
+start_route=$(sed -n 1p <<<"$start")
+start_model=$(sed -n 2p <<<"$start")
 
 mkdir -p "$AGENT_DIR"
 {
@@ -84,14 +87,14 @@ mkdir -p "$AGENT_DIR"
   echo '}'
 } > "$OUT"
 
-echo "  Wrote $OUT (${#entries[@]} providers)"
+echo "  Wrote $OUT (${#entries[@]} routes)"
 
 # pi starts on defaultProvider / defaultModel from its own user settings, which
 # also hold the theme and the installed packages — so the file is merged, never
 # rewritten. Ctrl+S in /model writes the same two keys.
 settings="$AGENT_DIR/settings.json"
 if command -v python3 >/dev/null 2>&1; then
-  python3 - "$settings" "$primary" "$start_model" <<'EOF'
+  python3 - "$settings" "$start_route" "$start_model" <<'EOF'
 import json, os, sys
 path, provider, model = sys.argv[1:4]
 try:
@@ -107,7 +110,7 @@ with open(tmp, "w") as f:
     f.write("\n")
 os.replace(tmp, path)
 EOF
-  echo "  Set pi's startup model to $primary/$start_model"
+  echo "  Set pi's startup model to $start_route/$start_model"
 else
   echo "  pi's startup model needs python3 — pick it with /model then Ctrl+S" >&2
 fi

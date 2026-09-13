@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Register every configured provider in Reasonix's global config
-# (`make reasonix-global`). Reasonix has no launcher in this repo: a bare
+# (`make reasonix-global`). A bare
 # `reasonix` reads the generated ~/.reasonix/config.toml, and every provider in
 # it is offered there.
 #
@@ -69,17 +69,29 @@ overrides_toml() { # -> one `model_overrides` entry per model, so each carries t
   printf 'model_overrides = { %s }' "$out"
 }
 
-provider_toml() { # <provider> — one [[providers]] block, after models_resolve
-  local headers
+provider_toml() { # -> one [[providers]] block for the resolved route. Reasonix's
+                  # Anthropic client appends /v1/messages itself; its OpenAI one
+                  # appends only /chat/completions. `default` has to be one of
+                  # the route's own models.
+  local headers kind base_url default
   headers=$(headers_toml)
+  case $M_API in
+    anthropic) kind=anthropic; base_url=$M_BASE_URL ;;
+    openai) kind=openai; base_url=$M_BASE_URL/v1 ;;
+  esac
+  if [ "$M_DEFAULT_API" = "$M_API" ]; then
+    default=$M_DEFAULT_MODEL
+  else
+    default=${M_MODEL_ROWS%%$'\x1f'*}
+  fi
   cat <<EOF
 [[providers]]
-name = "$1"
-kind = "anthropic"
-base_url = "$M_BASE_URL"
+name = "$(route_id)"
+kind = "$kind"
+base_url = "$base_url"
 api_key_env = "$M_API_KEY_VAR"
 $(models_toml)
-default = "$M_DEFAULT_MODEL"
+default = "$default"
 $(overrides_toml)${headers:+
 $headers}
 EOF
@@ -103,7 +115,9 @@ while IFS= read -r provider; do
     continue
   fi
   providers+=("$provider")
-  blocks+=("$(models_resolve "$provider"; provider_toml "$provider")")
+  for api in $(models_resolve "$provider"; printf '%s' "$M_APIS"); do
+    blocks+=("$(models_resolve "$provider" "$api"; provider_toml)")
+  done
 done < <(provider_names)
 
 if [ "${#blocks[@]}" -eq 0 ]; then
@@ -114,18 +128,18 @@ fi
 # The provider a session starts on, named with its model so the entry's own
 # `default` is not the only thing deciding it.
 primary=$(default_provider "${providers[@]}")
-start_model=$(models_resolve "$primary"; printf '%s' "$M_DEFAULT_MODEL")
+start=$(models_resolve "$primary"; printf '%s/%s' "$(route_id "$M_DEFAULT_API")" "$M_DEFAULT_MODEL")
 
 mkdir -p "$(dirname "$OUT")"
 {
   printf '%s\n\n' "$REASONIX_GLOBAL_MARKER"
-  printf 'default_model = "%s/%s"\n' "$primary" "$start_model"
+  printf 'default_model = "%s"\n' "$start"
   for block in "${blocks[@]}"; do
     printf '\n%s\n' "$block"
   done
 } > "$OUT"
 
-echo "  Wrote $OUT (${#blocks[@]} providers, default $primary/$start_model)"
+echo "  Wrote $OUT (${#blocks[@]} routes, default $start)"
 
 # Reasonix resolves a provider key only from the .env in its own directory, so
 # every variable the config names is copied there. Nothing else in that file is
