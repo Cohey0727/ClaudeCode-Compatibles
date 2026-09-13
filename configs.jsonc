@@ -159,6 +159,7 @@
         "models": [
           { "id": "deepseek/deepseek-v4.1-flash", "context_window": 1000000, "tags": ["default", "small"] },
           { "id": "moonshotai/Kimi-K3", "context_window": 1000000 },
+          { "id": "z-ai/glm-5.3-flash", "context_window": 1048576 },
 
           { "id": "claude-fable-5-1", "api": "anthropic", "context_window": 1000000 },
           { "id": "claude-opus-5", "api": "anthropic", "context_window": 1000000 },
