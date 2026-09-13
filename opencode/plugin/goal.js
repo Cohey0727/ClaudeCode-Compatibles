@@ -30,7 +30,7 @@ const LOOP_STATE_DIR = path.join(DATA_HOME, "opencode-loop")
 // so autonomous work never resumes behind the user's back.
 const RUNTIME = `${process.pid}-${Date.now()}`
 
-const DEFAULT_MAX_TURNS = 40
+const DEFAULT_MAX_TURNS = 1000
 const STATE_TTL_MS = 30 * 24 * 60 * 60 * 1000
 
 const USAGE = `/goal <objective>              start pursuing an objective

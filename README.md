@@ -342,7 +342,7 @@ next continuation, with the objective and the budget spent so far. It stops when
   `blocked` with what would unblock it. That tool is the only way the model can
   end the loop itself
 - you run `/goal pause` or `/goal clear`
-- the budget runs out: `--turns` (40 by default) or `--tokens`
+- the budget runs out: `--turns` (1000 by default) or `--tokens`
 - the turn was aborted or errored, or opencode was restarted — a goal from an
   earlier process is paused rather than resumed behind your back, and
   `/goal resume` picks it up
