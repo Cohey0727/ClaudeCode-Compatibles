@@ -301,7 +301,7 @@ process, and a turn already running when it comes due finishes first
   end the loop itself
 - a reply contains an `--until "TEXT"`, the same reply comes back
   `--until-stable N` times in a row, or a `--timeout` runs out
-- the budget runs out: `--max` (40 by default)
+- the budget runs out: `--max` (1000 by default)
 - you run `/loop pause` or `/loop clear`
 - the turn was aborted or errored, or opencode was restarted — a loop from an
   earlier process is paused rather than resumed behind your back, and
