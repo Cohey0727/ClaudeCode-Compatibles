@@ -98,10 +98,7 @@ Adding a provider is a new entry in `configs.jsonc` plus its key in `.env`; addi
   ```bash
   curl -fsSL https://codewhale.net/install.sh | sh
   ```
-- [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh` on your PATH) — optional. Needs Node.js `^22.19.0 || >=24.0.0`, and is a developer preview: read its [safety notice](https://github.com/deepseek-ai/deepseek-harness/blob/main/SAFETY.md) first:
-  ```bash
-  npm install -g @deepseek-ai/dsh
-  ```
+- [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`) — the one CLI `make setup` installs itself, with `npm install -g @deepseek-ai/dsh`, whenever `dsh` is not on your PATH. That needs `npm` and Node.js `^22.19.0 || >=24.0.0`; a `dsh` already there is left at its version, so upgrade it with the same command. It is a developer preview: read its [safety notice](https://github.com/deepseek-ai/deepseek-harness/blob/main/SAFETY.md) first
 
 Every one of these is optional. A generator writes its config whether or not the
 CLI is installed, and `make setup` says which of them it could not find on your
@@ -120,7 +117,7 @@ One interactive wizard does everything:
 2. Paste each API token — an empty answer keeps the existing token
 3. `configs.jsonc` is validated before anything is written; `.env` is created from `.env.example` if missing (`chmod 600`), gets any variables added to `.env.example` since, and picks up keys still sitting in the old `providers/<name>/.env` files
 4. One command per provider is generated in `~/.local/bin` — `claude<name>`, with the provider name baked in
-5. The pi packages that add [`/loop` and `/goal`](#loops-in-pi) are installed once into pi's user settings (`~/.pi/agent/settings.json`)
+5. The pi packages that add [`/loop` and `/goal`](#loops-in-pi) are installed once into pi's user settings (`~/.pi/agent/settings.json`), and DeepSeek Harness is installed with `npm install -g` unless `dsh` is already on your PATH
 6. Every provider whose key resolves is registered in the global config of every CLI that has no launcher — [one generator each](#generated-configs) — with every model in `configs.jsonc`, not just the tagged ones, and all of them starting on [the default provider](#default-provider)
 7. You get a warning if `~/.local/bin` or any of the CLIs those configs are for is missing from your PATH
 8. Every skill, every subagent and `AGENTS.md` are symlinked into the places each CLI reads them from, and OpenCode gets this repo's slash commands and plugins — [`/loop`](#loops-in-opencode) and [`/goal`](#goals-in-opencode) among them — in `~/.config/opencode` ([details below](#skills-and-global-instructions))
@@ -144,7 +141,7 @@ and [2026-09-13 — OpenCode の `/loop`](docs/migrations/2026-09-13-opencode-lo
 | Target | What it does |
 |--------|--------------|
 | `make setup` | Both halves: the provider wizard, then the skill, `AGENTS.md` and OpenCode extension install |
-| `make setup-providers` | The wizard above only: tokens, `.env` upkeep, launcher install, pi packages, and every global config |
+| `make setup-providers` | The wizard above only: tokens, `.env` upkeep, launcher install, pi packages, DeepSeek Harness, and every global config |
 | `make setup-skills` | The shared assets only: `skills/`, `agents/`, `AGENTS.md` and `opencode/` into every agent CLI |
 | `make check` | Validate `configs.jsonc`, then refuse any concrete name outside it (see `CLAUDE.md`). What the pre-commit hook runs |
 | `make hooks` | Install the lefthook pre-commit hook that runs `make check` |
@@ -872,10 +869,16 @@ live. Run `make pi-global` (or `make setup`) and check `/model`. A
 `~/.pi/agent/models.json` this repo did not write is left alone (first-line
 marker): merge it by hand or move it aside.
 
-**`'crush' / 'reasonix' / 'codewhale' / 'dsh' is not on your PATH`** — each of those
+**`'crush' / 'reasonix' / 'codewhale' is not on your PATH`** — each of those
 configs is only read by its own CLI, and this repo installs none of them. See
 [Requirements](#requirements). The config is written either way, so installing
 the CLI later needs no re-run.
+
+**`'dsh' is not on your PATH` after `make setup`** — the install step above it
+says why: no `npm`, the install failed, or npm's global `bin` directory is not
+on your PATH. Under asdf the setup regenerates the shim itself; with another
+version manager, open a new shell or reshim. `installed, but 'dsh --version'
+failed` means the active Node.js is older than `^22.19.0 || >=24.0.0`.
 
 **Crush starts on a model you did not pick** — Crush does not fail on a
 `model large` / `model small` naming something it cannot find; it substitutes a

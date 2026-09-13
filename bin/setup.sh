@@ -10,7 +10,8 @@
 # Keys still sitting in the old providers/<name>/.env files are carried over
 # first. Then a claude<name> launcher per provider is generated into $BIN_DIR
 # (default ~/.local/bin) from the template in bin/, the pi packages in
-# $PI_PACKAGES are installed into pi's user settings, and every provider whose
+# $PI_PACKAGES are installed into pi's user settings, DeepSeek Harness is
+# installed with npm unless dsh is already on the PATH, and every provider whose
 # key resolves is registered in the global config of every agent CLI that has
 # no launcher — one generator each, listed in $GLOBAL_GENERATORS.
 
@@ -345,6 +346,42 @@ install_pi_packages() {
   done
 }
 
+# DeepSeek Harness ships as an npm package. A dsh already on the PATH is left
+# at the version it is; `npm install -g` again is how it is upgraded.
+DSH_PACKAGE='@deepseek-ai/dsh' # style-check: allow
+
+install_dsh() {
+  local version
+  section 'installing DeepSeek Harness'
+  if command -v dsh >/dev/null 2>&1; then
+    ok "dsh $(dsh --version 2>/dev/null) is already installed"
+    return 0
+  fi
+  if ! command -v npm >/dev/null 2>&1; then
+    warn "skipped — 'npm' is not on your PATH. Install Node.js ^22.19.0 or >=24.0.0, then re-run."
+    return 0
+  fi
+  if ! npm install -g "$DSH_PACKAGE" >/dev/null 2>&1; then
+    warn "failed — run 'npm install -g $DSH_PACKAGE' by hand"
+    return 0
+  fi
+  # asdf reaches a global npm binary only through a shim it has to regenerate.
+  if command -v asdf >/dev/null 2>&1; then
+    asdf reshim nodejs >/dev/null 2>&1 || true
+  fi
+  hash -r
+  if ! command -v dsh >/dev/null 2>&1; then
+    warn "installed into $(npm prefix -g)/bin, which is not on your PATH"
+    return 0
+  fi
+  version=$(dsh --version 2>/dev/null || true)
+  if [ -z "$version" ]; then
+    warn "installed, but 'dsh --version' failed — it needs Node.js ^22.19.0 or >=24.0.0"
+    return 0
+  fi
+  ok "dsh $version installed"
+}
+
 check_environment() {
   local cmd where
   echo
@@ -435,6 +472,7 @@ main() {
   done
 
   install_pi_packages
+  install_dsh
 
   for generator in $GLOBAL_GENERATORS; do
     section "generating global ${generator%%-*} config"
