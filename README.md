@@ -26,7 +26,7 @@ Each provider exposes a native Anthropic-compatible endpoint, so there is no pro
 
 > **Note:** gtr is a `llama-server` on another machine, published through a Cloudflare tunnel and gated by Cloudflare Access. Requests without Access credentials get a 302 to the login page, so its `REQUEST_HEADERS` carry an Access service token (`CF-Access-Client-Id` / `CF-Access-Client-Secret`), whose values come from `.env` — where a short-lived `cloudflared access token` can stand in for a stored one. Like Local, its `API_KEY` is only a placeholder unless `llama-server` runs with `--api-key`.
 
-The other half of the repo is what those CLIs run *with*: the skills under `skills/` and the single global instruction file `AGENTS.md`, symlinked into every CLI's config directory by the same `make setup` — see [Skills and global instructions](#skills-and-global-instructions).
+The other half of the repo is what those CLIs run *with*: the skills under `skills/` and the single global instruction file `AGENTS.md`, symlinked into every CLI's config directory by the same `make setup` — see [Skills and global instructions](#skills-and-global-instructions). [Command Code](https://commandcode.ai) takes only this half: `make setup` installs it and links it the skills and `AGENTS.md`, but writes it no provider.
 
 ## Layout
 
@@ -98,7 +98,8 @@ Adding a provider is a new entry in `configs.jsonc` plus its key in `.env`; addi
   ```bash
   curl -fsSL https://codewhale.net/install.sh | sh
   ```
-- [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`) — the one CLI `make setup` installs itself, with `npm install -g @deepseek-ai/dsh`, whenever `dsh` is not on your PATH. That needs `npm` and Node.js `^22.19.0 || >=24.0.0`; a `dsh` already there is left at its version, so upgrade it with the same command. It is a developer preview: read its [safety notice](https://github.com/deepseek-ai/deepseek-harness/blob/main/SAFETY.md) first
+- [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`) — one of the two CLIs `make setup` installs itself, with `npm install -g @deepseek-ai/dsh`, whenever `dsh` is not on your PATH. That needs `npm` and Node.js `^22.19.0 || >=24.0.0`; a `dsh` already there is left at its version, so upgrade it with the same command. It is a developer preview: read its [safety notice](https://github.com/deepseek-ai/deepseek-harness/blob/main/SAFETY.md) first
+- [Command Code](https://commandcode.ai) (`cmd`) — the other one, installed with `npm install -g command-code` whenever `cmd` is not on your PATH. That needs `npm` and Node.js `>=22`. It gets no generated config, only the [skills and `AGENTS.md`](#skills-and-global-instructions), and it updates itself in the background (`cmd update` does it on demand)
 
 Every one of these is optional. A generator writes its config whether or not the
 CLI is installed, and `make setup` says which of them it could not find on your
@@ -117,7 +118,7 @@ One interactive wizard does everything:
 2. Paste each API token — an empty answer keeps the existing token
 3. `configs.jsonc` is validated before anything is written; `.env` is created from `.env.example` if missing (`chmod 600`), gets any variables added to `.env.example` since, and picks up keys still sitting in the old `providers/<name>/.env` files
 4. One command per provider is generated in `~/.local/bin` — `claude<name>`, with the provider name baked in
-5. The pi packages that add [`/loop` and `/goal`](#loops-in-pi) are installed once into pi's user settings (`~/.pi/agent/settings.json`), and DeepSeek Harness is installed with `npm install -g` unless `dsh` is already on your PATH
+5. The pi packages that add [`/loop` and `/goal`](#loops-in-pi) are installed once into pi's user settings (`~/.pi/agent/settings.json`), and DeepSeek Harness and Command Code are installed with `npm install -g` unless `dsh` / `cmd` is already on your PATH
 6. Every provider whose key resolves is registered in the global config of every CLI that has no launcher — [one generator each](#generated-configs) — with every model in `configs.jsonc`, not just the tagged ones, and all of them starting on [the default provider](#default-provider)
 7. You get a warning if `~/.local/bin` or any of the CLIs those configs are for is missing from your PATH
 8. Every skill, every subagent and `AGENTS.md` are symlinked into the places each CLI reads them from, and OpenCode gets this repo's slash commands and plugins — [`/loop`](#loops-in-opencode) and [`/goal`](#goals-in-opencode) among them — in `~/.config/opencode` ([details below](#skills-and-global-instructions))
@@ -141,7 +142,7 @@ and [2026-09-13 — OpenCode の `/loop`](docs/migrations/2026-09-13-opencode-lo
 | Target | What it does |
 |--------|--------------|
 | `make setup` | Both halves: the provider wizard, then the skill, `AGENTS.md` and OpenCode extension install |
-| `make setup-providers` | The wizard above only: tokens, `.env` upkeep, launcher install, pi packages, DeepSeek Harness, and every global config |
+| `make setup-providers` | The wizard above only: tokens, `.env` upkeep, launcher install, pi packages, DeepSeek Harness, Command Code, and every global config |
 | `make setup-skills` | The shared assets only: `skills/`, `agents/`, `AGENTS.md` and `opencode/` into every agent CLI |
 | `make check` | Validate `configs.jsonc`, then refuse any concrete name outside it (see `CLAUDE.md`). What the pre-commit hook runs |
 | `make hooks` | Install the lefthook pre-commit hook that runs `make check` |
@@ -765,6 +766,7 @@ One file is the source of truth; each CLI gets it under the name it expects:
 | `~/.codex/AGENTS.md` | Codex |
 | `~/.config/crush/CRUSH.md` | Crush |
 | `~/.dsh/AGENTS.md` | DeepSeek Harness |
+| `~/.commandcode/AGENTS.md` | Command Code |
 
 Per-project files need no such trick: pi reads a directory's `AGENTS.md` or its
 `CLAUDE.md`, whichever is there. OpenCode takes global instructions from the
@@ -787,12 +789,13 @@ roots:
 |--------|---------|
 | `~/.claude/skills/` | Claude Code, opencode |
 | `~/.claude/agents/` | Claude Code |
-| `~/.agents/skills/` | Codex, DeepSeek Harness, opencode, pi |
+| `~/.agents/skills/` | Codex, Command Code, DeepSeek Harness, opencode, pi |
 | `~/.agents/agents/` | nothing yet — kept as a mirror |
 
 `~/.agents` is the vendor-neutral root: pi reads it alongside
 `~/.pi/agent/skills`, opencode alongside `~/.claude/skills`, DeepSeek Harness
-alongside `~/.dsh/skills`, and Codex uses it as its skills root. Subagents have no such convention — every CLI keeps its own
+alongside `~/.dsh/skills`, Command Code alongside `~/.commandcode/skills`, and
+Codex uses it as its skills root. Subagents have no such convention — every CLI keeps its own
 place (`~/.codex/agents/*.toml`, `~/.config/opencode/agent/*.md`, pi's subagent
 extension) — so `~/.agents/agents` is a mirror nothing reads today.
 
@@ -874,11 +877,12 @@ configs is only read by its own CLI, and this repo installs none of them. See
 [Requirements](#requirements). The config is written either way, so installing
 the CLI later needs no re-run.
 
-**`'dsh' is not on your PATH` after `make setup`** — the install step above it
+**`dsh` or `cmd` is not on your PATH after `make setup`** — its install step
 says why: no `npm`, the install failed, or npm's global `bin` directory is not
 on your PATH. Under asdf the setup regenerates the shim itself; with another
-version manager, open a new shell or reshim. `installed, but 'dsh --version'
-failed` means the active Node.js is older than `^22.19.0 || >=24.0.0`.
+version manager, open a new shell or reshim. `installed, but '<command>
+--version' failed` means the active Node.js is too old: dsh needs
+`^22.19.0 || >=24.0.0`, Command Code `>=22`.
 
 **Crush starts on a model you did not pick** — Crush does not fail on a
 `model large` / `model small` naming something it cannot find; it substitutes a
@@ -971,3 +975,4 @@ Where each provider's key comes from:
 - [Reasonix: config paths](https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/CONFIG_PATHS.md) / [reasonix.example.toml](https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/reasonix.example.toml)
 - [Codewhale: Configuration](https://github.com/Hmbown/Codewhale/blob/main/docs/CONFIGURATION.md) / [Providers](https://github.com/Hmbown/Codewhale/blob/main/docs/PROVIDERS.md)
 - [DeepSeek Harness: Documentation](https://deepseek-harness.github.io/deepseek-harness/) / [Safety notice](https://github.com/deepseek-ai/deepseek-harness/blob/main/SAFETY.md)
+- [Command Code: Documentation](https://commandcode.ai/docs)

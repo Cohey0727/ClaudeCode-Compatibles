@@ -13,7 +13,7 @@ banner
 
 section 'targets'
 target 'make setup' 'both halves: the provider wizard, then the skill symlinks'
-target 'make setup-providers' 'pick providers, paste tokens, install launchers, dsh and every global config'
+target 'make setup-providers' 'pick providers, paste tokens, install launchers, dsh, Command Code and every global config'
 target 'make setup-skills' 'link skills/, agents/, AGENTS.md and opencode/ into every agent CLI'
 target 'make list' 'every provider, skill, subagent and OpenCode extension, with its install status'
 target 'make pi-global' "re-generate pi's global models.json from configs.jsonc"
