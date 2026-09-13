@@ -74,8 +74,8 @@ uninstall:
 
 # One target per agent CLI that has no launcher: each writes that CLI's own
 # global config from configs.jsonc, so a bare `pi`, `opencode`, `crush`,
-# `reasonix`, `codewhale` or `dsh` lists every provider. `make setup` runs them
-# all.
+# `reasonix` or `codewhale`, and every `dsh --profile`, lists every provider.
+# `make setup` runs them all.
 pi-global:
 	@"$(ROOT)/bin/pi-global-models.sh"
 

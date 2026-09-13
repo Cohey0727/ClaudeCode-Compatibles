@@ -12,7 +12,7 @@ One repo that installs a `claude<name>` launcher command per provider and genera
 | Local (llama.cpp) | `claudelocal` | `http://127.0.0.1:11301` | `default` |
 | gtr (llama.cpp behind Cloudflare) | `claudegtr` | `https://gtr-llama.spaghetti-monster.com` | `default` |
 
-Only Claude Code gets a per-provider command. The other six have no launcher: `make setup` writes every provider into their global configs, so a bare `opencode` gets them all under `/models`, a bare `pi` under `/model`, and `crush`, `reasonix`, `codewhale` and `dsh` each start with the whole set.
+Only Claude Code gets a per-provider command. The other six have no launcher: `make setup` writes every provider into their global configs, so a bare `opencode` gets them all under `/models`, a bare `pi` under `/model`, `crush`, `reasonix` and `codewhale` each start with the whole set, and so does `dsh web` — `dsh` has no default profile, so a bare `dsh` only answers `--profile <name> is required`.
 
 Kimi runs that flagship as its 1M-context variant under Claude Code (`kimi-k3[1m]`); the other CLIs send the plain `kimi-k3`.
 
