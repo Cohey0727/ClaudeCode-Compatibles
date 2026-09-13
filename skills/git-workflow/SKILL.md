@@ -29,6 +29,11 @@ git remote -v
 
 ### Step 2: Branch Detection and Checkout
 
+🚨 **worktree の中にいる場合、`git branch --show-current` は自分が作ったブランチしか返さない。判定にならない。**
+必ず `git -C <メインチェックアウト> branch --show-current` を見る。メインが具象ブランチにいるなら、それが作業対象。
+**worktree を新しく作るときも base を `origin/develop` に決め打ちせず、メインが居るブランチの worktree を作る。**
+(2026-09-12、メインが `docs/ai-processing-flow` にいるのに develop から切って 95 コミット古いコードをリファクタし全損)
+
 現在のブランチが以下の汎用ブランチに該当するか判定する:
 
 - `main`
