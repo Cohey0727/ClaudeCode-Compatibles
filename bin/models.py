@@ -15,7 +15,8 @@ The file is JSON with // line comments allowed.
   models.py tags <provider>     "<id><tab><tag>,<tag>" per model
   models.py providers           one provider name per line
   models.py primary             the provider marked "primary", if any
-  models.py opencode-merge      the OpenCode config on stdin, opencode.overrides merged in
+  models.py opencode-merge <dir>  the OpenCode config on stdin, opencode.overrides merged in
+  models.py opencode-vars       every "${NAME}" opencode.overrides references, with its fallback
   models.py env-vars            every "${NAME}" the file references, with its provider
 """
 
@@ -157,6 +158,49 @@ def opencode_overrides():
     if not isinstance(overrides, dict):
         raise ConfigError(f"{where}: overrides must be an object")
     return overrides
+
+
+def strings(value):
+    """Every string anywhere inside a JSON value."""
+    if isinstance(value, dict):
+        for item in value.values():
+            yield from strings(item)
+    elif isinstance(value, list):
+        for item in value:
+            yield from strings(item)
+    elif isinstance(value, str):
+        yield value
+
+
+def map_strings(value, fn):
+    """A JSON value with fn applied to every string inside it."""
+    if isinstance(value, dict):
+        return {key: map_strings(item, fn) for key, item in value.items()}
+    if isinstance(value, list):
+        return [map_strings(item, fn) for item in value]
+    return fn(value) if isinstance(value, str) else value
+
+
+def opencode_vars():
+    """(variable, fallback) per "${NAME}" in opencode.overrides, first fallback per name."""
+    found = {}
+    for text in strings(opencode_overrides()):
+        for var, fallback in REFERENCE.findall(text):
+            found.setdefault(var, fallback)
+    return found
+
+
+def opencode_file_references(directory):
+    """opencode.overrides with each "${NAME}" swapped for {file:<directory>/NAME.var}.
+
+    The generator writes that file from the .env, so opencode.json holds a path
+    and never the value.
+    """
+    directory = directory.rstrip("/")
+    return map_strings(
+        opencode_overrides(),
+        lambda text: REFERENCE.sub(lambda m: f"{{file:{directory}/{m.group(1)}.var}}", text),
+    )
 
 
 def deep_merge(base, overrides):
@@ -417,7 +461,8 @@ def env_vars():
 def main(argv):
     action = argv[1] if len(argv) > 1 else ""
     argument = argv[2] if len(argv) > 2 else ""
-    if action not in ("sh", "check", "tags", "providers", "env-vars", "primary", "opencode-merge", "vocabulary"):
+    actions = ("sh", "check", "tags", "providers", "env-vars", "primary", "opencode-merge", "opencode-vars", "vocabulary")
+    if action not in actions:
         print(__doc__.strip(), file=sys.stderr)
         return 2
     try:
@@ -425,9 +470,15 @@ def main(argv):
             print("\n".join(load_file()))
         elif action == "primary":
             print(primary_provider())
+        elif action == "opencode-vars":
+            print("\n".join(f"{var}\t{fallback}" for var, fallback in opencode_vars().items()))
+        elif action == "opencode-merge" and not argument:
+            print("models.py opencode-merge: the directory the .var files go in is required", file=sys.stderr)
+            return 2
         elif action == "opencode-merge":
             config = json.loads(strip_comments(sys.stdin.read()))
-            print(json.dumps(deep_merge(config, opencode_overrides()), indent=2, ensure_ascii=False))
+            merged = deep_merge(config, opencode_file_references(argument))
+            print(json.dumps(merged, indent=2, ensure_ascii=False))
         elif action == "vocabulary":
             print(vocabulary())
         elif action == "env-vars":

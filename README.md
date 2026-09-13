@@ -115,7 +115,7 @@ make setup
 One interactive wizard does everything:
 
 1. Check the providers you want (arrows + Space, Enter to confirm — providers that already have a token are pre-checked)
-2. Paste each API token — an empty answer keeps the existing token
+2. Paste each API token, then the keys [`opencode.overrides`](#default-provider) references (`COMMAND_CODE_API_KEY`) — an empty answer keeps the existing token
 3. `configs.jsonc` is validated before anything is written; `.env` is created from `.env.example` if missing (`chmod 600`), gets any variables added to `.env.example` since, and picks up keys still sitting in the old `providers/<name>/.env` files
 4. One command per provider is generated in `~/.local/bin` — `claude<name>`, with the provider name baked in
 5. The pi packages that add [`/loop` and `/goal`](#loops-in-pi) are installed once into pi's user settings (`~/.pi/agent/settings.json`), and DeepSeek Harness and Command Code are installed with `npm install -g` unless `dsh` / `cmd` is already on your PATH
@@ -259,10 +259,9 @@ The same section is where OpenCode reaches [Command Code's Provider API](https:/
 | `commandcode-openai` | `@ai-sdk/openai-compatible` | GPT, DeepSeek, Kimi, GLM, MiniMax, Qwen, Gemini, Grok and the `:free` / `-free` ones |
 | `commandcode-anthropic` | `@ai-sdk/anthropic` | Claude |
 
-Both take their key as `{env:COMMAND_CODE_API_KEY}`, which OpenCode reads from its own process environment — it is not in `.env`, and `make setup` does not ask for it. Export it from your shell profile (an API key from Command Code Studio; the Go plan has no API access). The Command Code CLI reads the same variable.
+Both take their key as `"${COMMAND_CODE_API_KEY}"`, an API key from [Command Code Studio](https://commandcode.ai/studio/) (the Go plan has no API access). `make setup` asks for every variable `opencode.overrides` references once the providers' keys are in, and keeps it in `.env` like any other key. `make opencode-global` then copies each value to `~/.config/opencode/claude-compatibles/<NAME>.var` (chmod 600), and `opencode.json` refers to that file with `{file:...}`, so the key never lands in the config itself.
 
 ```bash
-export COMMAND_CODE_API_KEY=...
 opencode --model commandcode-openai/deepseek/deepseek-v4.1-flash
 ```
 
@@ -675,7 +674,8 @@ per-provider key file under `~/.config/opencode/claude-compatibles/`
 source of truth, but after rotating a key re-run `make setup` (or
 `make opencode-global`) so the copy updates; the re-run also drops key files
 of providers whose key was emptied. `REQUEST_HEADERS` values are copied the same
-way, one file per header, and referenced from `options.headers`. OpenCode merges `config.json`,
+way, one file per header, and referenced from `options.headers`; so is each
+`${NAME}` in `opencode.overrides`, one `<NAME>.var` file per variable. OpenCode merges `config.json`,
 `opencode.json` and `opencode.jsonc` from its config directory (later wins)
 and then your project `opencode.json`, so hand-written settings still override
 the generated ones — and a file this repo did not generate is never touched

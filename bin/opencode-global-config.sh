@@ -16,7 +16,8 @@
 # default one.
 #
 # configs.jsonc's top-level opencode.overrides is deep-merged into the config
-# last, key by key, so its keys win over the generated ones.
+# last, key by key, so its keys win over the generated ones. A "${NAME}" in it
+# becomes a {file:...} reference too, to a copy of NAME's .env value.
 
 set -euo pipefail
 
@@ -63,7 +64,7 @@ small_model="$default_id/$(sed -n 3p <<<"$default_models")"
 # a provider whose key was emptied leaves no stale copy behind.
 mkdir -p "$TOKENS_DIR"
 chmod 700 "$TOKENS_DIR"
-rm -f "$TOKENS_DIR"/*.token "$TOKENS_DIR"/*.header "$TOKENS_DIR"/*.prompt.md
+rm -f "$TOKENS_DIR"/*.token "$TOKENS_DIR"/*.header "$TOKENS_DIR"/*.prompt.md "$TOKENS_DIR"/*.var
 
 opencode_header_ref() { # <name> -> {file:...} reference for the provider in scope
   printf '{file:%s/%s.%s.header}' "$TOKENS_DIR" "$provider" "$1"
@@ -127,7 +128,12 @@ config=$(
   printf '  "small_model": "%s"\n' "$small_model"
   echo '}'
 )
-config=$("$PYTHON" "$MODELS_PY" opencode-merge <<<"$config")
+while IFS=$'\t' read -r var fallback; do
+  [ -n "$var" ] || continue
+  printf '%s' "$(env_value "$var" "$fallback")" > "$TOKENS_DIR/$var.var"
+  chmod 600 "$TOKENS_DIR/$var.var"
+done < <("$PYTHON" "$MODELS_PY" opencode-vars)
+config=$("$PYTHON" "$MODELS_PY" opencode-merge "$TOKENS_DIR" <<<"$config")
 model=$("$PYTHON" -c 'import json, sys; print(json.load(sys.stdin)["model"])' <<<"$config")
 
 mkdir -p "$CONFIG_DIR"

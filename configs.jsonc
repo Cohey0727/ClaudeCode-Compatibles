@@ -3,7 +3,8 @@
 // .env beside this file, so no secret is written here. Fields: see README.
 {
   // Deep-merged, key by key, into the generated opencode.json last, so a key
-  // here wins.
+  // here wins. A "${NAME}" here is asked for by `make setup` and reaches
+  // opencode.json as a {file:...} reference to a copy of its .env value.
   "opencode": {
     "overrides": {
       "model": "opencode-go/deepseek-v4.1-flash",
@@ -12,18 +13,17 @@
       // Command Code's Provider API cannot be a provider below: every provider
       // there is served over Anthropic Messages to every CLI, and Command Code
       // answers only Claude on /messages — everything else only on
-      // /chat/completions, with a 400 for the wrong one. OpenCode reads
-      // COMMAND_CODE_API_KEY from its own environment, not from .env.
-      // "context" is the model's context_length in GET /provider/v1/models;
-      // without one OpenCode never compacts. "output" is only a ceiling, and
-      // OpenCode caps it at 32000 anyway.
+      // /chat/completions, with a 400 for the wrong one. "context" is the
+      // model's context_length in GET /provider/v1/models; without one
+      // OpenCode never compacts. "output" is only a ceiling, and OpenCode caps
+      // it at 32000 anyway.
       "provider": {
         "commandcode-openai": {
           "npm": "@ai-sdk/openai-compatible",
           "name": "Subscriptions",
           "options": {
             "baseURL": "https://api.commandcode.ai/provider/v1",
-            "apiKey": "{env:COMMAND_CODE_API_KEY}"
+            "apiKey": "${COMMAND_CODE_API_KEY}"
           },
           "models": {
             "deepseek/deepseek-v4.1-flash": { "name": "Command Code deepseek/deepseek-v4.1-flash", "limit": { "context": 1000000, "output": 32000 } },
@@ -55,7 +55,7 @@
           "name": "Subscriptions",
           "options": {
             "baseURL": "https://api.commandcode.ai/provider/v1",
-            "apiKey": "{env:COMMAND_CODE_API_KEY}"
+            "apiKey": "${COMMAND_CODE_API_KEY}"
           },
           "models": {
             "claude-fable-5-1": { "name": "Command Code claude-fable-5-1", "limit": { "context": 1000000, "output": 32000 } },
