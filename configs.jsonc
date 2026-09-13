@@ -7,7 +7,17 @@
   "opencode": {
     "overrides": {
       "model": "opencode-go/deepseek-v4.1-flash",
-      "small_model": "opencode-go/deepseek-v4.1-flash"
+      "small_model": "opencode-go/deepseek-v4.1-flash",
+
+      "mcp": {
+        // The persistent profile keeps logins across restarts. Chrome locks a
+        // profile to one browser, so only one agent can drive it at a time.
+        "playwright": {
+          "type": "local",
+          "command": ["npx", "@playwright/mcp@latest", "--user-data-dir", "{env:HOME}/playwright/profiles/default"],
+          "enabled": true
+        }
+      }
     }
   },
 
