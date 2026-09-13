@@ -31,6 +31,7 @@ CONTEXT_TARGETS=(
   "$HOME/.pi/agent/AGENTS.md"
   "$HOME/.codex/AGENTS.md"
   "$(crush_config_dir)/CRUSH.md"
+  "$(dsh_home)/AGENTS.md"
 )
 
 context_reader() { # <target> -> the CLI that reads it
@@ -39,17 +40,19 @@ context_reader() { # <target> -> the CLI that reads it
     "$HOME/.pi/agent/AGENTS.md") echo pi ;;
     "$HOME/.codex/AGENTS.md") echo codex ;;
     "$(crush_config_dir)/CRUSH.md") echo crush ;;
+    "$(dsh_home)/AGENTS.md") echo dsh ;;
   esac
 }
 
 skill_readers() { # <root> -> CLIs that discover skills there
   # opencode, crush and reasonix read both roots; pi reads ~/.pi/agent/skills
-  # and ~/.agents/skills; codex uses .agents/skills as its skills root. All of
-  # them follow a symlink out to this repo — except Reasonix's *instruction*
-  # loader, which is why AGENTS.md has no target under ~/.reasonix.
+  # and ~/.agents/skills; codex uses .agents/skills as its skills root; dsh
+  # reads its own home and ~/.agents/skills. All of them follow a symlink out
+  # to this repo — except Reasonix's *instruction* loader, which is why
+  # AGENTS.md has no target under ~/.reasonix.
   case $1 in
     "$HOME/.claude") echo 'claude crush opencode reasonix' ;;
-    "$HOME/.agents") echo 'codex crush opencode pi reasonix' ;;
+    "$HOME/.agents") echo 'codex crush dsh opencode pi reasonix' ;;
   esac
 }
 

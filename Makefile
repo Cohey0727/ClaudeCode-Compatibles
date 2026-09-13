@@ -9,7 +9,7 @@ COMMON        := $(ROOT)/bin/common.sh
 PROVIDER_LIST := $(shell . $(ROOT)/bin/common.sh && provider_names)
 
 .PHONY: setup setup-providers setup-skills list uninstall help pi-global opencode-global \
-	crush-global reasonix-global codewhale-global check hooks
+	crush-global reasonix-global codewhale-global dsh-global check hooks
 
 # Both halves of the repo: the provider wizard first (it prompts), then the
 # skill symlinks. SKIP_BANNER keeps it to a single banner.
@@ -74,7 +74,8 @@ uninstall:
 
 # One target per agent CLI that has no launcher: each writes that CLI's own
 # global config from configs.jsonc, so a bare `pi`, `opencode`, `crush`,
-# `reasonix` or `codewhale` lists every provider. `make setup` runs them all.
+# `reasonix`, `codewhale` or `dsh` lists every provider. `make setup` runs them
+# all.
 pi-global:
 	@"$(ROOT)/bin/pi-global-models.sh"
 
@@ -89,6 +90,9 @@ reasonix-global:
 
 codewhale-global:
 	@"$(ROOT)/bin/codewhale-global-config.sh"
+
+dsh-global:
+	@"$(ROOT)/bin/dsh-global-config.sh"
 
 help:
 	@"$(ROOT)/bin/help.sh"

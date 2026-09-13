@@ -363,6 +363,7 @@ pi|the pi coding agent (https://pi.dev)
 crush|Crush (https://github.com/charmbracelet/crush)
 reasonix|Reasonix (https://github.com/esengine/DeepSeek-Reasonix)
 codewhale|Codewhale (https://codewhale.net)
+dsh|DeepSeek Harness (see Requirements in README.md)
 AGENTS
   case ":$PATH:" in
     *":$BIN_DIR:"*) ;;

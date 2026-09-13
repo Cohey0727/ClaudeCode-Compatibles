@@ -347,6 +347,7 @@ def shell(config):
     slots = config["slots"]
     values = {
         "M_NAME": config["name"],
+        "M_LABEL": config["label"],
         "M_COMMAND": config["command"],
         "M_API_KEY": config["api_key"],
         "M_API_KEY_VAR": config["api_key_var"],

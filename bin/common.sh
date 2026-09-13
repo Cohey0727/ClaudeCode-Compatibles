@@ -36,6 +36,7 @@ OPENCODE_GLOBAL_MARKER=$(generated_marker opencode-global)
 CRUSH_GLOBAL_MARKER=$(generated_marker crush-global "$GENERATED_MARKER_HASH")
 REASONIX_GLOBAL_MARKER=$(generated_marker reasonix-global "$GENERATED_MARKER_HASH")
 CODEWHALE_GLOBAL_MARKER=$(generated_marker codewhale-global "$GENERATED_MARKER_HASH")
+DSH_GLOBAL_MARKER=$(generated_marker dsh-global "$GENERATED_MARKER_HASH")
 OPENCODE_PLUGIN_MARKER="$GENERATED_MARKER — the plugin itself lives in this repo"
 
 generated_here() { # <file> — does it carry the note on its first line, under
@@ -74,7 +75,8 @@ GLOBAL_GENERATORS="pi-global-models
 opencode-global-config
 crush-global-config
 reasonix-global-config
-codewhale-global-config"
+codewhale-global-config
+dsh-global-config"
 
 # The path each of those owns, in the same order. Named here rather than in the
 # Makefile so uninstall removes them all without spelling any of them out.
@@ -82,7 +84,8 @@ GENERATED_CONFIG_PATHS="pi_global_models_path
 opencode_global_config_path
 crush_global_config_path
 reasonix_global_config_path
-codewhale_global_config_path"
+codewhale_global_config_path
+dsh_global_config_path"
 
 generated_config_paths() { # -> one generated config path per line
   local path
@@ -110,6 +113,20 @@ codewhale_home() { # -> Codewhale's own directory: its config and its .env
 
 codewhale_global_config_path() { # -> the config.toml `make codewhale-global` writes
   printf '%s/config.toml' "$(codewhale_home)"
+}
+
+dsh_home() { # -> DeepSeek Harness's own directory: its patch, .env and AGENTS.md
+  printf '%s' "${DSH_HOME:-$HOME/.dsh}"
+}
+
+dsh_global_config_path() { # -> the home patch `make dsh-global` writes. Every
+                           # profile applies it, and dsh itself never writes it.
+  printf '%s/cordis.patch.yml' "$(dsh_home)"
+}
+
+dsh_env_path() { # -> the .env dsh resolves an apiKeyEnv from after the process
+                 # environment, its credentials file and the working directory's
+  printf '%s/.env' "$(dsh_home)"
 }
 
 crush_config_dir() { # -> Crush's global config directory
@@ -356,6 +373,12 @@ crush_secret_ref() { # <variable name> [<fallback>] -> the substitution Crush ru
   local command
   command=$(secret_command "$1" "${2:-}") || return 1
   printf '$(%s)' "$command"
+}
+
+dsh_provider_id() { # -> the route dsh files the provider under. A route whose
+                    # id matches a provider dsh ships, or one in its model
+                    # catalog, is merged into it or refused as a duplicate.
+  printf '%s-anthropic' "$M_NAME"
 }
 
 codewhale_provider_id() { # -> the id Codewhale files the provider under. It
