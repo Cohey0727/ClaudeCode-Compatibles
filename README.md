@@ -252,6 +252,22 @@ OpenCode can start somewhere else. `make opencode-global` deep-merges the top-le
 }
 ```
 
+The same section is where OpenCode reaches [Command Code's Provider API](https://commandcode.ai/docs/provider), as two providers under `overrides.provider`. Command Code serves Claude only on `/messages` and every other model only on `/chat/completions`, so it cannot be an entry in `providers`, which every CLI reads over Anthropic Messages:
+
+| OpenCode provider | AI SDK package | Models |
+|---|---|---|
+| `commandcode-openai` | `@ai-sdk/openai-compatible` | GPT, DeepSeek, Kimi, GLM, MiniMax, Qwen, Gemini, Grok and the `:free` / `-free` ones |
+| `commandcode-anthropic` | `@ai-sdk/anthropic` | Claude |
+
+Both take their key as `{env:COMMAND_CODE_API_KEY}`, which OpenCode reads from its own process environment — it is not in `.env`, and `make setup` does not ask for it. Export it from your shell profile (an API key from Command Code Studio; the Go plan has no API access). The Command Code CLI reads the same variable.
+
+```bash
+export COMMAND_CODE_API_KEY=...
+opencode --model commandcode-openai/deepseek/deepseek-v4.1-flash
+```
+
+The full catalog is `GET https://api.commandcode.ai/provider/v1/models`, which needs no key. A model added to `overrides.provider` needs a `limit.context`: OpenCode never compacts a session on a model without one.
+
 ### Loops in pi
 
 pi keeps its core small and ships no loop of its own — nor sub-agents, MCP,
@@ -582,13 +598,17 @@ heading, and each model's display name leads with its provider's `label`:
 OpenCode Zen          OpenCode's own, from /connect
 OpenCode Go           OpenCode's own, from /connect
 Subscriptions         everything in configs.jsonc
+  Command Code claude-opus-5
+  Command Code deepseek/deepseek-v4.1-flash
   DeepSeek deepseek-v4-pro
   Z.AI glm-5.3
   Moonshot kimi-k3
   Local default
 ```
 
-Nothing under Subscriptions comes from OpenCode's own catalog (models.dev). Each
+Nothing under Subscriptions comes from OpenCode's own catalog (models.dev). The
+Command Code models are written out whole in `opencode.overrides` (see
+[Default provider](#default-provider)). Every other
 provider is declared in full against the Anthropic endpoint `BASE_URL` names —
 the route its `claude<name>` launcher uses — with exactly the models listed in
 `configs.jsonc`. It is filed under `<name>-anthropic`, and the suffix is what
