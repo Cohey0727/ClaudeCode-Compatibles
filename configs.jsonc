@@ -18,6 +18,14 @@
           "type": "local",
           "command": ["npx", "@playwright/mcp@latest", "--user-data-dir", "{env:HOME}/playwright/profiles/default"],
           "enabled": true
+        },
+
+        // Parallel Search is a remote HTTP server, not an npm package; there is
+        // no @parallel/search-mcp. Anonymous use is free at lower rate limits.
+        "parallel-search": {
+          "type": "remote",
+          "url": "https://search.parallel.ai/mcp",
+          "enabled": true
         }
       }
     }
