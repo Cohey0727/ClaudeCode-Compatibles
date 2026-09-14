@@ -232,7 +232,7 @@ OpenCode can start somewhere else. `make opencode-global` deep-merges the top-le
 }
 ```
 
-Anything else OpenCode's config takes goes there too, written in OpenCode's own form. Its MCP servers do — today the [Playwright MCP](https://github.com/microsoft/playwright-mcp), started on the persistent profile `~/playwright/profiles/default` so a login survives restarts. OpenCode expands `{env:HOME}` in the command itself, so the same entry works on every machine. Chrome locks a profile to one browser, so while another agent drives that profile, OpenCode's Playwright cannot start one. `opencode mcp list` shows whether it connected.
+Anything else OpenCode's config takes goes there too, written in OpenCode's own form. The permission policy does: `"permission": "allow"` runs every tool without an approval prompt, so a session never stops to ask. Its MCP servers do — today the [Playwright MCP](https://github.com/microsoft/playwright-mcp), started on the persistent profile `~/playwright/profiles/default` so a login survives restarts. OpenCode expands `{env:HOME}` in the command itself, so the same entry works on every machine. Chrome locks a profile to one browser, so while another agent drives that profile, OpenCode's Playwright cannot start one. `opencode mcp list` shows whether it connected.
 
 ### Loops in pi
 
